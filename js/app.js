@@ -156,21 +156,22 @@ const App = (() => {
     var hint = document.querySelector('.load-skip-hint');
     if (hint) hint.style.display = '';
 
-    // 获取视频时长作为加载总时长
-    var duration = 8; // 默认8秒
+    // 视频设置：跳到"给我擦皮鞋"高能片段(~15s处)，8秒循环
+    var MEME_START = 15.0;
+    var MEME_DURATION = 8.0;
+    var duration = MEME_DURATION;
     if (loadVideoEl) {
-      loadVideoEl.currentTime = 0;
+      loadVideoEl.currentTime = MEME_START;
       loadVideoEl.play().catch(function(){});
-      // 尝试获取真实时长
-      if (loadVideoEl.duration && isFinite(loadVideoEl.duration)) {
-        duration = loadVideoEl.duration;
-      } else {
-        loadVideoEl.addEventListener('loadedmetadata', function() {
-          if (isFinite(loadVideoEl.duration)) duration = loadVideoEl.duration;
-        }, {once: true});
-      }
+      // 在8秒片段内循环
+      loadVideoEl._memeLoop = function() {
+        if (loadVideoEl.currentTime >= MEME_START + MEME_DURATION) {
+          loadVideoEl.currentTime = MEME_START;
+        }
+      };
+      loadVideoEl.addEventListener('timeupdate', loadVideoEl._memeLoop);
     }
-    if (loadAudioEl) { loadAudioEl.currentTime = 0; loadAudioEl.play().catch(function(){}); }
+    if (loadAudioEl) { loadAudioEl.currentTime = MEME_START; loadAudioEl.play().catch(function(){}); }
 
     var fill = $('#loadProgressFill');
     var text = $('#loadProgressText');
@@ -246,7 +247,7 @@ const App = (() => {
   function stopLoadMedia() {
     if (loadTimer) { clearInterval(loadTimer); loadTimer = null; }
     var v = document.getElementById('loadVideo');
-    if (v) { v.pause(); v.currentTime = 0; }
+    if (v) { v.pause(); v.currentTime = 0; if (v._memeLoop) v.removeEventListener('timeupdate', v._memeLoop); }
     var a = document.getElementById('loadAudio');
     if (a) { a.pause(); a.currentTime = 0; }
     loadVideoEl = null;
