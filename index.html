@@ -23,8 +23,15 @@
       <div class="splash-slots" id="splashSlots">
         <!-- JS动态生成5个存档槽位 -->
       </div>
-      <div class="splash-actions">
-        <button class="splash-btn primary" id="btnNewGame" onclick="App.startNewGame()">🆕 新游戏</button>
+      <div class="splash-actions" id="splashActions">
+        <button class="splash-btn primary" id="btnNewGame" onclick="App.showNameInput()">🆕 新游戏</button>
+        <div id="splashNameInput" style="display:none;flex-direction:column;align-items:center;gap:10px;width:100%">
+          <input type="text" id="splashSaveName" placeholder="输入存档名称..." maxlength="20" style="width:100%;padding:10px 14px;border:2px solid var(--accent);border-radius:8px;background:rgba(255,255,255,0.06);color:#fff;font-size:14px;font-family:var(--font-stack);outline:none;text-align:center">
+          <div style="display:flex;gap:8px;width:100%">
+            <button class="splash-btn" onclick="App.confirmNewGame()" style="flex:1;background:var(--accent);color:#fff">✓ 确认创建</button>
+            <button class="splash-btn" onclick="App.cancelNameInput()" style="flex:1;background:rgba(255,255,255,0.1);color:#999">取消</button>
+          </div>
+        </div>
       </div>
       <div class="splash-footer">
         <span id="splashVersion">v2.0 · 20+模块</span>

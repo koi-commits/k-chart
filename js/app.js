@@ -75,17 +75,29 @@ const App = (() => {
     splashReady = true;
   }
 
-  function startNewGame() {
-    var saves = SaveManager.getAllSaves();
-    var emptySlot = -1;
-    for (var i = 0; i < 5; i++) { if (!saves[i]) { emptySlot = i; break; } }
-    if (emptySlot < 0) emptySlot = 0;
-    var name = prompt('给存档取个名字：', '我的交易之旅');
-    if (name === null) return; // 用户取消
-    SaveManager.saveSlot(emptySlot, name || '新存档');
-    // 新游戏不播放视频，直接普通加载
+  function showNameInput() {
+    var btn = $('#btnNewGame'); if (btn) btn.style.display = 'none';
+    var input = $('#splashNameInput'); if (input) input.style.display = 'flex';
+    var inp = $('#splashSaveName'); if (inp) { inp.value = '我的交易之旅'; setTimeout(function(){ inp.focus(); inp.select(); }, 100); }
+  }
+
+  function cancelNameInput() {
+    var btn = $('#btnNewGame'); if (btn) btn.style.display = '';
+    var input = $('#splashNameInput'); if (input) input.style.display = 'none';
+  }
+
+  function confirmNewGame() {
+    var name = document.getElementById('splashSaveName');
+    var saveName = (name && name.value.trim()) ? name.value.trim() : '新存档';
+    cancelNameInput();
+    var saves = (typeof SaveManager !== 'undefined') ? SaveManager.getAllSaves() : [];
+    var slot = 0;
+    for (var i = 0; i < 5; i++) { if (!saves[i]) { slot = i; break; } }
+    SaveManager.saveSlot(slot, saveName);
     showPlainLoadScreen(function() { hideSplash(); });
   }
+
+  function startNewGame() { showNameInput(); }
 
   function loadGame(slotIndex) {
     // 读档播放视频
@@ -1793,6 +1805,9 @@ const App = (() => {
       showToast('💾 游戏已保存到槽位 ' + (slot+1));
     },
     startNewGame:startNewGame,
+    showNameInput:showNameInput,
+    confirmNewGame:confirmNewGame,
+    cancelNameInput:cancelNameInput,
     loadGame:loadGame,
     startTutorial:function(){
       if(typeof TutorialUI!=='undefined'&&typeof TutorialContent!=='undefined'){
