@@ -311,6 +311,13 @@
               <button class="quant-btn" id="btnQuantStart" style="flex:1;background:var(--up-color);color:#fff">▶ 启动</button>
               <button class="quant-btn" id="btnQuantStop" style="flex:1;background:var(--down-color);color:#fff">⏹ 停止</button>
             </div>
+            <div class="quant-strategies" id="quantStrategies" style="padding:6px 0">
+              <label class="quant-strat-item"><input type="checkbox" data-strat="ma_cross" checked> 📊 均线交叉 (金叉买/死叉卖)</label>
+              <label class="quant-strat-item"><input type="checkbox" data-strat="rsi_mr"> 📈 RSI均值回归 (超卖买/超买卖)</label>
+              <label class="quant-strat-item"><input type="checkbox" data-strat="macd_signal"> 🔄 MACD信号 (DIF穿越DEA)</label>
+              <label class="quant-strat-item"><input type="checkbox" data-strat="boll_break"> 🎯 布林带突破 (下轨买/上轨卖)</label>
+              <label class="quant-strat-item"><input type="checkbox" data-strat="grid"> 📐 网格交易 (跌买涨卖)</label>
+            </div>
             <div style="font-size:10px;color:var(--text-muted);margin:4px 0">今日交易: <b id="quantDailyCount">0</b>/50</div>
             <div class="quant-trade-log" id="quantTradeLog" style="max-height:120px;overflow-y:auto;font-size:10px"><div style="color:var(--text-muted)">等待启动...</div></div>
           </div>
@@ -323,6 +330,12 @@
           <div class="quant-section-header"><span>📊 组合优化</span></div>
           <div class="quant-section-body">
             <button class="quant-btn" id="btnOptimize" style="width:100%;background:var(--accent);color:#fff;margin-bottom:6px">🔄 运行优化</button>
+            <div class="quant-tabs" id="quantOptTabs" style="display:flex;gap:2px;margin-bottom:6px">
+              <button class="quant-opt-tab active" data-method="maxSharpe">最大夏普</button>
+              <button class="quant-opt-tab" data-method="minVariance">最小方差</button>
+              <button class="quant-opt-tab" data-method="riskParity">风险平价</button>
+              <button class="quant-opt-tab" data-method="equalWeight">等权重</button>
+            </div>
             <div class="quant-allocation" id="quantAllocation" style="max-height:200px;overflow-y:auto"><div style="color:var(--text-muted);text-align:center;padding:12px">点击运行优化</div></div>
           </div>
         </div>

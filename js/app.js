@@ -1476,6 +1476,12 @@ const App = (() => {
         showToast('优化完成');
       }, 150);
     });
+    // Strategy checkbox wiring
+    $$('#quantStrategies input[type=checkbox]').forEach(function(cb) {
+      cb.addEventListener('change', function() {
+        if (typeof QuantTrading !== 'undefined') QuantTrading.setStrategyEnabled(cb.dataset.strat, cb.checked);
+      });
+    });
     updateQuantStatus();
     // Auto-compute risk on tab open
     setTimeout(function() { displayRiskMetrics(); }, 200);
