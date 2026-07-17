@@ -156,40 +156,31 @@ const App = (() => {
     var hint = document.querySelector('.load-skip-hint');
     if (hint) hint.style.display = '';
 
-    // 双视频循环: 擦皮鞋 → 验牌 → 擦皮鞋 → ...
-    var video1 = document.getElementById('loadVideo');
-    var video2 = document.getElementById('loadVideo2');
-    var audio1 = document.getElementById('loadAudio');
-    var audio2 = document.getElementById('loadAudio2');
+    // B站嵌入式播放器 — 自带音频, 无需ffmpeg
+    var iframe1 = document.getElementById('loadVideo');
+    var iframe2 = document.getElementById('loadVideo2');
+    // B站播放器参数: autoplay=1 muted=0 loop=0 t=0(从0s开始)
+    var PLAYER1 = 'https://player.bilibili.com/player.html?bvid=BV1va14BLEEa&autoplay=1&muted=0&t=0&loop=0&highQuality=1';
+    var PLAYER2 = 'https://player.bilibili.com/player.html?bvid=BV1S5FWzcEGV&autoplay=1&muted=0&t=0&loop=0&highQuality=1';
     var duration = 12;
     var activeVideo = 1;
 
-    function playV1() {
-      activeVideo = 1;
-      if (video2) { video2.style.opacity = '0'; video2.pause(); }
-      if (audio2) { audio2.pause(); audio2.currentTime = 0; }
-      if (video1) { video1.style.opacity = '1'; video1.currentTime = 0; video1.play().catch(function(){}); }
-      if (audio1) { audio1.currentTime = 0; audio1.play().catch(function(){}); }
-    }
-    function playV2() {
-      activeVideo = 2;
-      if (video1) { video1.style.opacity = '0'; video1.pause(); }
-      if (audio1) { audio1.pause(); audio1.currentTime = 0; }
-      if (video2) { video2.style.opacity = '1'; video2.currentTime = 0; video2.play().catch(function(){}); }
-      if (audio2) { audio2.currentTime = 0; audio2.play().catch(function(){}); }
-    }
-    function nextVideo() {
-      if (activeVideo === 1) playV2(); else playV1();
-    }
-    if (video1) { video1.addEventListener('ended', nextVideo); }
-    if (video2) { video2.addEventListener('ended', nextVideo); }
-    playV1();
+    if (iframe1) iframe1.src = PLAYER1;
+    // 延迟加载第二个, 先让第一个播放
+    setTimeout(function() { if (iframe2) iframe2.src = PLAYER2; }, 500);
 
-    // 备用: 每7s强制切换一次 (防止ended不触发)
+    // 每6s切换一次iframe (B站循环版约6s一个循环)
     switchInterval = setInterval(function() {
-      var v = activeVideo === 1 ? video1 : video2;
-      if (v && v.currentTime > 6) nextVideo();
-    }, 1000);
+      if (activeVideo === 1) {
+        activeVideo = 2;
+        if (iframe2) { iframe2.style.opacity = '1'; iframe2.src = PLAYER2 + '&autoplay=1&t=0'; }
+        if (iframe1) iframe1.style.opacity = '0';
+      } else {
+        activeVideo = 1;
+        if (iframe1) { iframe1.style.opacity = '1'; iframe1.src = PLAYER1 + '&autoplay=1&t=0'; }
+        if (iframe2) iframe2.style.opacity = '0';
+      }
+    }, 7000);
 
     var fill = $('#loadProgressFill');
     var text = $('#loadProgressText');
@@ -266,10 +257,9 @@ const App = (() => {
   function stopLoadMedia() {
     if (loadTimer) { clearInterval(loadTimer); loadTimer = null; }
     if (switchInterval) { clearInterval(switchInterval); switchInterval = null; }
-    var v = document.getElementById('loadVideo'); if (v) { v.pause(); v.currentTime = 0; v.style.opacity = '1'; }
-    var v2 = document.getElementById('loadVideo2'); if (v2) { v2.pause(); v2.currentTime = 0; v2.style.opacity = '0'; }
-    var a = document.getElementById('loadAudio'); if (a) { a.pause(); a.currentTime = 0; }
-    var a2 = document.getElementById('loadAudio2'); if (a2) { a2.pause(); a2.currentTime = 0; }
+    // 停止iframe播放(清空src)
+    var v = document.getElementById('loadVideo'); if (v) { v.src = ''; v.style.opacity = '1'; }
+    var v2 = document.getElementById('loadVideo2'); if (v2) { v2.src = ''; v2.style.opacity = '0'; }
     loadVideoEl = null; loadAudioEl = null;
   }
 
