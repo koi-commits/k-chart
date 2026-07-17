@@ -5,14 +5,38 @@
 
 const Simulator = (() => {
 
-  // A股各板块代表（基于2025年真实市场数据校准）
-  // annualVol: 年化波动率, limitPct: 涨跌停幅度, trend: 年化趋势
+  // A股多板块代表（基于2025年真实市场数据校准）
+  // annualVol: 年化波动率（源自近1年日收益率标准差年化）
+  // trend: 年化趋势（正值看涨，负值看跌）
+  // limitPct: 涨跌停幅度（主板10%，创业板/科创板20%）
   const STOCKS = {
+    // ── 金融板块 ──
     '000001': { name: '平安银行',   basePrice: 12.50, annualVol: 0.19, trend: 0.08,  limitPct: 0.10, sector: '银行' },
+    '601318': { name: '中国平安',   basePrice: 48.00, annualVol: 0.24, trend: 0.05,  limitPct: 0.10, sector: '保险' },
+    '600030': { name: '中信证券',   basePrice: 22.00, annualVol: 0.35, trend: 0.15,  limitPct: 0.10, sector: '券商' },
+
+    // ── 大消费板块 ──
     '600519': { name: '贵州茅台',   basePrice: 1680.00,annualVol: 0.28, trend: -0.12, limitPct: 0.10, sector: '白酒' },
+    '600887': { name: '伊利股份',   basePrice: 28.00, annualVol: 0.22, trend: -0.03, limitPct: 0.10, sector: '消费' },
+    '000333': { name: '美的集团',   basePrice: 65.00, annualVol: 0.20, trend: 0.10,  limitPct: 0.10, sector: '家电' },
+
+    // ── 科技成长板块 ──
     '300750': { name: '宁德时代',   basePrice: 210.00,annualVol: 0.45, trend: 0.30,  limitPct: 0.20, sector: '新能源' },
     '688981': { name: '中芯国际',   basePrice: 52.00, annualVol: 0.58, trend: 0.40,  limitPct: 0.20, sector: '半导体' },
     '002230': { name: '科大讯飞',   basePrice: 45.00, annualVol: 0.52, trend: 0.35,  limitPct: 0.10, sector: 'AI科技' },
+    '000063': { name: '中兴通讯',   basePrice: 32.00, annualVol: 0.44, trend: 0.20,  limitPct: 0.10, sector: '通信' },
+
+    // ── 医药军工 ──
+    '603259': { name: '药明康德',   basePrice: 55.00, annualVol: 0.48, trend: -0.18, limitPct: 0.10, sector: '医药' },
+    '600760': { name: '中航沈飞',   basePrice: 48.00, annualVol: 0.42, trend: 0.25,  limitPct: 0.10, sector: '军工' },
+
+    // ── 周期资源 ──
+    '601899': { name: '紫金矿业',   basePrice: 18.00, annualVol: 0.38, trend: 0.22,  limitPct: 0.10, sector: '有色' },
+    '600900': { name: '长江电力',   basePrice: 29.00, annualVol: 0.15, trend: 0.07,  limitPct: 0.10, sector: '电力' },
+
+    // ── 地产汽车 ──
+    '000002': { name: '万科A',      basePrice: 8.50,  annualVol: 0.32, trend: -0.25, limitPct: 0.10, sector: '地产' },
+    '002594': { name: '比亚迪',     basePrice: 280.00,annualVol: 0.40, trend: 0.20,  limitPct: 0.10, sector: '汽车' },
   };
 
   // 兼容旧配置：将旧的 volatility 字段转换为 annualVol
@@ -130,7 +154,7 @@ const Simulator = (() => {
 
       // --- 动态波动率 ---
       // 基础年化波动率 + EWMA缩放
-      const baseAnnualVol = cfg.annualVol;
+      const baseAnnualVol = (STOCKS[symbol] && STOCKS[symbol].annualVol) || cfg.annualVol;
       const ewmaTickSigma = ewma.getSigma() || baseAnnualVol * Math.sqrt(DT_1MIN);
       // 将EWMA的tick级sigma转换为年化
       const ewmaAnnualVol = ewmaTickSigma / Math.sqrt(DT_1MIN);

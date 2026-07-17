@@ -8,6 +8,8 @@ const ChartManager = (() => {
   let kdjK, kdjD, kdjJ;
   let indiMode = 'rsi';
   let dark = true;
+  var overlaySymbols = [];
+  var overlayCanvas = null;
 
   const C = {
     dark: { bg:'#0d0d0d', txt:'#999', grid:'#1a1a1a', bd:'#2a2a2a', up:'#ff5252', dn:'#66bb6a', upBg:'rgba(255,82,82,0.2)', dnBg:'rgba(102,187,106,0.2)', ma5:'#f5a623', ma10:'#42a5f5', ma20:'#ce93d8', boll:'rgba(255,183,77,0.5)', macdL:'#42a5f5', macdS:'#f5a623', macdU:'rgba(255,82,82,0.5)', macdD:'rgba(102,187,106,0.5)', rsi:'#7c4dff', rsio:'rgba(255,82,82,0.3)', rsiu:'rgba(102,187,106,0.3)', k:'#f5a623', d:'#42a5f5', j:'#ce93d8', x:'#555' },
@@ -144,5 +146,164 @@ const ChartManager = (() => {
 
   function resize(){['mainChart','volumeChart','macdChart','rsiChart'].forEach(function(id){var el=document.getElementById(id);var ch={mainChart:mainChart,volumeChart:volChart,macdChart:macdChart,rsiChart:rsiChart}[id];if(ch&&el)ch.applyOptions({width:el.clientWidth,height:el.clientHeight});});}
 
-  return {init:init,updateData:updateData,setTheme:setTheme,resize:resize,switchIndicator:switchIndicator,getIndicatorMode:getIndicatorMode,getMainChart:function(){return mainChart;},getCandleSeries:function(){return candleSeries;}};
+  // ── Overlay comparison ──
+  function showOverlay(symbols) {
+    overlaySymbols = symbols || [];
+    var panel = document.getElementById('comparisonPanel');
+    if (panel) panel.style.display = 'flex';
+    overlayCanvas = document.getElementById('comparisonCanvas');
+    resizeOverlay();
+  }
+
+  function hideOverlay() {
+    overlaySymbols = [];
+    overlayCanvas = null;
+    var panel = document.getElementById('comparisonPanel');
+    if (panel) panel.style.display = 'none';
+  }
+
+  function isOverlayActive() {
+    return overlaySymbols.length > 0;
+  }
+
+  function resizeOverlay() {
+    var canvas = document.getElementById('comparisonCanvas');
+    var panel = document.getElementById('comparisonPanel');
+    if (canvas && panel) {
+      var w = panel.clientWidth;
+      var h = panel.clientHeight;
+      if (w > 0 && h > 0) {
+        canvas.width = w;
+        canvas.height = h;
+      }
+    }
+  }
+
+  /**
+   * Draw overlay comparison chart on canvas
+   * @param {Array} stockData - [{symbol, name, color, prices:[{time,value}]}]
+   */
+  function updateOverlay(stockData) {
+    var canvas = overlayCanvas || document.getElementById('comparisonCanvas');
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+    var w = canvas.width, h = canvas.height;
+    if (w <= 0 || h <= 0) return;
+
+    ctx.clearRect(0, 0, w, h);
+
+    if (!stockData || stockData.length === 0) {
+      ctx.fillStyle = dark ? '#666' : '#999';
+      ctx.font = '11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('请在左侧勾选要对比的股票（最多5只）', w / 2, h / 2);
+      return;
+    }
+
+    var pad = { top: 20, right: 20, bottom: 25, left: 45 };
+    var pw = w - pad.left - pad.right;
+    var ph = h - pad.top - pad.bottom;
+    if (pw <= 0 || ph <= 0) return;
+
+    // Find value range across all series
+    var allVals = [];
+    stockData.forEach(function(sd) {
+      sd.prices.forEach(function(p) { allVals.push(p.value); });
+    });
+    if (allVals.length < 2) return;
+    var minV = Math.min.apply(null, allVals);
+    var maxV = Math.max.apply(null, allVals);
+    var range = maxV - minV || 1;
+
+    // Extend range slightly
+    minV = minV - range * 0.05;
+    maxV = maxV + range * 0.05;
+    range = maxV - minV;
+
+    // Y-axis labels
+    ctx.fillStyle = dark ? '#999' : '#666';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'right';
+    var ySteps = 4;
+    for (var j = 0; j <= ySteps; j++) {
+      var val = minV + (range * j / ySteps);
+      var yy = pad.top + ph * (1 - j / ySteps);
+      ctx.fillText(val.toFixed(1), pad.left - 4, yy + 3);
+    }
+
+    // Grid lines
+    ctx.strokeStyle = dark ? '#2a2a2a' : '#e0e0e0';
+    ctx.lineWidth = 0.5;
+    for (j = 0; j <= ySteps; j++) {
+      var gy = pad.top + ph * (1 - j / ySteps);
+      ctx.beginPath();
+      ctx.moveTo(pad.left, gy);
+      ctx.lineTo(w - pad.right, gy);
+      ctx.stroke();
+    }
+
+    // 100 base line (dashed)
+    var baseY = pad.top + ph * (1 - (100 - minV) / range);
+    if (baseY >= pad.top && baseY <= h - pad.bottom) {
+      ctx.strokeStyle = dark ? '#555' : '#bbb';
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(pad.left, baseY);
+      ctx.lineTo(w - pad.right, baseY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // "100" label
+      ctx.fillStyle = dark ? '#999' : '#666';
+      ctx.textAlign = 'left';
+      ctx.fillText('100', w - pad.right + 2, baseY + 3);
+      ctx.textAlign = 'right';
+    }
+
+    // Draw each stock line
+    var lineColors = ['#ff5252', '#42a5f5', '#ff9800', '#ce93d8', '#66bb6a', '#f5a623'];
+    var isLight = !dark;
+
+    stockData.forEach(function(sd, si) {
+      var color = sd.color || lineColors[si % lineColors.length];
+      var pxData = sd.prices.map(function(p, pi) {
+        return {
+          x: pad.left + (pi / Math.max(sd.prices.length - 1, 1)) * pw,
+          y: pad.top + ph * (1 - (p.value - minV) / range)
+        };
+      });
+
+      // Draw line
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      pxData.forEach(function(pt, pi) {
+        if (pi === 0) ctx.moveTo(pt.x, pt.y);
+        else ctx.lineTo(pt.x, pt.y);
+      });
+      ctx.stroke();
+
+      // Label at end
+      var lastPt = pxData[pxData.length - 1];
+      ctx.fillStyle = color;
+      ctx.font = 'bold 10px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(sd.name, lastPt.x + 4, lastPt.y + 4);
+      ctx.textAlign = 'right';
+    });
+
+    // X-axis label
+    ctx.fillStyle = dark ? '#999' : '#666';
+    ctx.font = '9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('规范化价格 (基准=100)', w / 2, h - 3);
+  }
+
+  // Add resizeOverlay to the main resize function
+  var _origResize = resize;
+  resize = function() {
+    _origResize();
+    resizeOverlay();
+  };
+
+  return {init:init,updateData:updateData,setTheme:setTheme,resize:resize,switchIndicator:switchIndicator,getIndicatorMode:getIndicatorMode,getMainChart:function(){return mainChart;},getCandleSeries:function(){return candleSeries;},showOverlay:showOverlay,hideOverlay:hideOverlay,isOverlayActive:isOverlayActive,updateOverlay:updateOverlay};
 })();

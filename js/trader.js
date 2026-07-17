@@ -22,8 +22,14 @@ const Trader = (() => {
     orders: [],        // 当日委托记录
   };
 
-  // SL/TP 挂单
+  // SL/TP 挂单（现有持仓的止盈止损）
   let pendingOrders = [];  // [{ symbol, slPrice?, tpPrice?, shares, avgCost }]
+
+  // 委托订单簿：限价单、止损单、括号单(OCO)
+  // [{ id, type:'limit'|'stop'|'bracket', symbol, side:'buy'|'sell', shares,
+  //    limitPrice?, stopPrice?, tpPrice?, slPrice?, entryPrice?, createdAt }]
+  let orderBook = [];
+  let orderIdCounter = 1000;
 
   // 监听器
   let listeners = [];
@@ -340,6 +346,212 @@ const Trader = (() => {
     return [...pendingOrders];
   }
 
+  // ────── 限价单 / 止损单 / 括号单 ──────
+
+  /**
+   * 下限价单：价格达到 limitPrice 时成交
+   * @param {string} symbol
+   * @param {string} side - 'buy' | 'sell'
+   * @param {number} shares
+   * @param {number} limitPrice - 限价
+   * @param {object} opts - { slPrice?, tpPrice? }
+   */
+  function placeLimitOrder(symbol, side, shares, limitPrice, opts) {
+    shares = Math.floor(shares / 100) * 100;
+    if (shares < 100) return { success: false, message: '最小交易单位为100股' };
+    if (!limitPrice || limitPrice <= 0) return { success: false, message: '请设置有效的限价' };
+
+    var order = {
+      id: ++orderIdCounter,
+      type: 'limit',
+      symbol: symbol,
+      side: side,
+      shares: shares,
+      limitPrice: limitPrice,
+      slPrice: (opts && opts.slPrice) || null,
+      tpPrice: (opts && opts.tpPrice) || null,
+      createdAt: Date.now()
+    };
+    orderBook.push(order);
+    notify('orderbook', { action: 'added', order: order });
+    return { success: true, message: '限价单已挂出 #' + order.id, order: order };
+  }
+
+  /**
+   * 下止损单：价格触及 stopPrice 时触发市价单
+   * @param {string} symbol
+   * @param {string} side - 'buy' | 'sell'
+   * @param {number} shares
+   * @param {number} stopPrice - 触发价
+   * @param {object} opts - { slPrice?, tpPrice? }
+   */
+  function placeStopOrder(symbol, side, shares, stopPrice, opts) {
+    shares = Math.floor(shares / 100) * 100;
+    if (shares < 100) return { success: false, message: '最小交易单位为100股' };
+    if (!stopPrice || stopPrice <= 0) return { success: false, message: '请设置有效的止损触发价' };
+
+    var order = {
+      id: ++orderIdCounter,
+      type: 'stop',
+      symbol: symbol,
+      side: side,
+      shares: shares,
+      stopPrice: stopPrice,
+      slPrice: (opts && opts.slPrice) || null,
+      tpPrice: (opts && opts.tpPrice) || null,
+      createdAt: Date.now()
+    };
+    orderBook.push(order);
+    notify('orderbook', { action: 'added', order: order });
+    return { success: true, message: '止损单已挂出 #' + order.id, order: order };
+  }
+
+  /**
+   * 下括号单 (OCO: One-Cancels-Other)
+   * 入场后同时挂止盈和止损，一方触发则另一方取消
+   * @param {string} symbol
+   * @param {string} side - 'buy' | 'sell'（入场方向）
+   * @param {number} shares
+   * @param {number} entryPrice - 入场触发价（通常是现价附近）
+   * @param {number} tpPrice - 止盈价
+   * @param {number} slPrice - 止损价
+   */
+  function placeBracketOrder(symbol, side, shares, entryPrice, tpPrice, slPrice) {
+    shares = Math.floor(shares / 100) * 100;
+    if (shares < 100) return { success: false, message: '最小交易单位为100股' };
+    if (!entryPrice || entryPrice <= 0) return { success: false, message: '请设置入场价' };
+    if (!tpPrice || !slPrice) return { success: false, message: '请设置止盈价和止损价' };
+
+    // 验证价格逻辑
+    if (side === 'buy') {
+      if (tpPrice <= entryPrice || slPrice >= entryPrice) {
+        return { success: false, message: '买入括号单：止盈价应高于入场价，止损价应低于入场价' };
+      }
+    } else {
+      if (tpPrice >= entryPrice || slPrice <= entryPrice) {
+        return { success: false, message: '卖出括号单：止盈价应低于入场价，止损价应高于入场价' };
+      }
+    }
+
+    var order = {
+      id: ++orderIdCounter,
+      type: 'bracket',
+      symbol: symbol,
+      side: side,
+      shares: shares,
+      entryPrice: entryPrice,
+      tpPrice: tpPrice,
+      slPrice: slPrice,
+      createdAt: Date.now()
+    };
+    orderBook.push(order);
+    notify('orderbook', { action: 'added', order: order });
+    return { success: true, message: '括号单已挂出 #' + order.id + ' (入场 '+entryPrice.toFixed(2)+' TP '+tpPrice.toFixed(2)+' SL '+slPrice.toFixed(2)+')', order: order };
+  }
+
+  /**
+   * 每个 tick 检查委托订单簿，触发满足条件的订单
+   * @returns {Array} 触发的订单列表 [{ order, reason, result }]
+   */
+  function checkOrderBook() {
+    var triggered = [];
+    var remaining = [];
+
+    for (var i = 0; i < orderBook.length; i++) {
+      var order = orderBook[i];
+      var sim = Simulator.get(order.symbol);
+      var price = sim.getPrice();
+      var hit = false;
+      var reason = '';
+
+      if (order.type === 'limit') {
+        // 限价买单：价格 <= 限价时成交
+        if (order.side === 'buy' && price <= order.limitPrice) {
+          hit = true;
+          reason = '限价买单触发 #' + order.id + ': 现价 ' + price.toFixed(2) + ' <= ' + order.limitPrice.toFixed(2);
+        }
+        // 限价卖单：价格 >= 限价时成交
+        if (order.side === 'sell' && price >= order.limitPrice) {
+          hit = true;
+          reason = '限价卖单触发 #' + order.id + ': 现价 ' + price.toFixed(2) + ' >= ' + order.limitPrice.toFixed(2);
+        }
+      } else if (order.type === 'stop') {
+        // 止损买单：价格 >= 触发价时买入（追涨）
+        if (order.side === 'buy' && price >= order.stopPrice) {
+          hit = true;
+          reason = '止损买单触发 #' + order.id + ': 现价 ' + price.toFixed(2) + ' >= ' + order.stopPrice.toFixed(2);
+        }
+        // 止损卖单：价格 <= 触发价时卖出（杀跌）
+        if (order.side === 'sell' && price <= order.stopPrice) {
+          hit = true;
+          reason = '止损卖单触发 #' + order.id + ': 现价 ' + price.toFixed(2) + ' <= ' + order.stopPrice.toFixed(2);
+        }
+      } else if (order.type === 'bracket') {
+        // 括号单：先检查入场
+        if (order.side === 'buy' && price <= order.entryPrice) {
+          hit = true;
+          reason = '括号单入场触发 #' + order.id + ': 买入 ' + order.symbol + ' @ ' + price.toFixed(2);
+        } else if (order.side === 'sell' && price >= order.entryPrice) {
+          hit = true;
+          reason = '括号单入场触发 #' + order.id + ': 卖出 ' + order.symbol + ' @ ' + price.toFixed(2);
+        }
+      }
+
+      if (hit) {
+        var result;
+        if (order.type === 'bracket') {
+          // 括号单：执行入场，并设置 SL/TP
+          result = placeOrder(order.symbol, order.side, order.shares, {
+            slPrice: order.slPrice,
+            tpPrice: order.tpPrice
+          });
+        } else if (order.type === 'limit' || order.type === 'stop') {
+          // 限价单/止损单：以市价执行
+          result = placeOrder(order.symbol, order.side, order.shares, {
+            slPrice: order.slPrice,
+            tpPrice: order.tpPrice
+          });
+        }
+        triggered.push({ order: order, reason: reason, result: result });
+        // 括号单触发后，另一腿由 SL/TP 机制处理，无需额外操作
+      } else {
+        remaining.push(order);
+      }
+    }
+
+    orderBook = remaining;
+    if (triggered.length > 0) {
+      notify('orderbook', { action: 'triggered', triggered: triggered });
+    }
+    return triggered;
+  }
+
+  /**
+   * 取消委托单
+   * @param {number} orderId
+   * @returns {object} { success, message }
+   */
+  function cancelOrder(orderId) {
+    var idx = -1;
+    for (var i = 0; i < orderBook.length; i++) {
+      if (orderBook[i].id === orderId) { idx = i; break; }
+    }
+    if (idx >= 0) {
+      var removed = orderBook.splice(idx, 1)[0];
+      notify('orderbook', { action: 'cancelled', order: removed });
+      return { success: true, message: '委托单 #' + orderId + ' 已取消' };
+    }
+    return { success: false, message: '未找到委托单 #' + orderId };
+  }
+
+  /**
+   * 获取所有委托订单簿
+   * @returns {Array}
+   */
+  function getOrderBook() {
+    return orderBook.slice();
+  }
+
   // ────── 持久化 ──────
   const STORAGE_KEY = 'kline_account';
 
@@ -351,6 +563,8 @@ const Trader = (() => {
         positions: account.positions,
         trades: account.trades.slice(-100),   // 保留最近100条
         pendingOrders,
+        orderBook: orderBook.slice(-50),       // 保留最近50条委托
+        orderIdCounter: orderIdCounter,
         savedAt: Date.now(),
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -367,6 +581,8 @@ const Trader = (() => {
       account.positions = data.positions || {};
       account.trades = data.trades || [];
       pendingOrders = data.pendingOrders || [];
+      orderBook = data.orderBook || [];
+      orderIdCounter = data.orderIdCounter || 1000;
       return true;
     } catch(e) { return false; }
   }
@@ -378,6 +594,8 @@ const Trader = (() => {
     account.trades = [];
     account.orders = [];
     pendingOrders = [];
+    orderBook = [];
+    orderIdCounter = 1000;
     notify('account', getSummary());
   }
 
@@ -387,6 +605,8 @@ const Trader = (() => {
     account.positions = {};
     account.trades = [];
     account.orders = [];
+    orderBook = [];
+    orderIdCounter = 1000;
     notify('account', getSummary());
   }
 
@@ -407,6 +627,12 @@ const Trader = (() => {
     setCapital,
     checkSLTP,
     getPendingOrders,
+    placeLimitOrder,
+    placeStopOrder,
+    placeBracketOrder,
+    checkOrderBook,
+    cancelOrder,
+    getOrderBook,
     save,
     load,
     onUpdate,

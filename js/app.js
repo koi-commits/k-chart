@@ -6,6 +6,22 @@ const App = (() => {
   var equityHist = [];
   var S = [2000,1500,1000,700,500,350,250,150,100,60];
 
+  // ── Overlay / Pattern state ──
+  var overlayActive = false;
+  var overlayStocks = [];      // selected symbols for comparison (max 5)
+  var patternPanelOpen = true;
+
+  // ── Watchlist state ──
+  var wlTab = 'all', wlSort = 'default', wlCols = { showChange: true, showSector: true, showSparkline: false };
+  var wlGroups = {
+    lanchou: ['000001','600519','600900','000333','601318','600887'],
+    keji: ['300750','688981','002230','000063','603259','600760','002594']
+  };
+  var zixuan = [];
+
+  // ── Drawing state ──
+  var drawState = { pts: [], rectEl: null, startX: 0, startY: 0 };
+
   // Safe DOM helpers
   function $ (s){return document.querySelector(s);}
   function $$(s){return document.querySelectorAll(s);}
@@ -32,11 +48,17 @@ const App = (() => {
     var ss = localStorage.getItem('kline_speed');
     if (ss) { speed = parseInt(ss)||5; var sl=$('#speedSlider'); if(sl)sl.value=speed; txt('#speedValue','×'+speed); }
 
+    // Load persisted watchlist + period state
+    loadPersistedState();
+
+    initWatchlistUI();
     renderStockList();
     bindStockBtns();
     val('#tradePrice', sim.getPrice().toFixed(2));
     bindEvents();
     initSentiment();
+    initVolatility();
+    initPatterns();
     updateAll();
     play();
   }
@@ -69,6 +91,45 @@ const App = (() => {
 
     // draw tools: now handled via HTML inline onclick (App.activateDraw / App.clearDraws)
 
+    // watchlist tabs
+    $$('.wl-tab').forEach(function(t){on(t,'click',function(){switchWatchlistTab(t.dataset.group);});});
+
+    // column config
+    on($('#btnColConfig'),'click',function(e){e.stopPropagation();toggleColConfig();});
+    document.addEventListener('click',function(){var p=$('#colConfigPopover');if(p)p.style.display='none';});
+    $$('#colConfigPopover input[type=checkbox]').forEach(function(cb){on(cb,'change',function(){updateColConfig(cb.dataset.col,cb.checked);});});
+
+    // sort select
+    on($('#wlSortSelect'),'change',function(){wlSort=this.value;savePersistedState();renderStockList();});
+
+    // stock list right-click context menu
+    var stockListEl = document.getElementById('stockList');
+    if (stockListEl) {
+      stockListEl.addEventListener('contextmenu', function(e) {
+        var item = e.target.closest('.stock-item');
+        if (!item) return;
+        e.preventDefault();
+        showContextMenu(e.clientX, e.clientY, item.dataset.symbol);
+      });
+    }
+    document.addEventListener('click', function(){ hideContextMenu(); });
+    $$('.ctx-item').forEach(function(item){on(item,'click',function(){handleContextAction(item.dataset.action);});});
+
+    // alert panel
+    on($('#btnAlerts'),'click',function(){toggleAlertPanel();});
+    on($('#btnAlertClose'),'click',function(){var p=$('#alertPanel');if(p)p.style.display='none';});
+    on($('#alertPanel'),'click',function(e){if(e.target===this)this.style.display='none';});
+    on($('#btnAddAlert'),'click',addAlert);
+    on($('#alertType'),'change',function(){var vf=$('#alertValueField');if(vf)vf.style.display=this.value==='kdj_cross'?'none':'';});
+
+    // help overlay
+    on($('#btnHelpClose'),'click',function(){var h=$('#helpOverlay');if(h)h.style.display='none';});
+    on($('#helpOverlay'),'click',function(e){if(e.target===this)this.style.display='none';});
+
+    // equity modal
+    on($('#btnEquityClose'),'click',function(){var m=$('#equityModal');if(m)m.style.display='none';});
+    on($('#equityModal'),'click',function(e){if(e.target===this)this.style.display='none';});
+
     // indicator switch
     on($('#indicatorSwitch'),'click',function(){
       var cur = ChartManager.getIndicatorMode();
@@ -95,7 +156,72 @@ const App = (() => {
 
     // Drawing: capture-phase click on chart container (fires before LC internal handlers)
     var chartEl = document.getElementById('mainChart');
-    if (chartEl) chartEl.addEventListener('click', handleDrawClick, true);
+    if (chartEl) {
+      chartEl.addEventListener('click', handleDrawClick, true);
+      // Rectangle: mousedown/mousemove/mouseup on chart
+      chartEl.addEventListener('mousedown', function(e) {
+        if (activeDrawTool !== 'rectangle') return;
+        e.preventDefault();
+        var rect = chartEl.getBoundingClientRect();
+        drawState.startX = e.clientX - rect.left;
+        drawState.startY = e.clientY - rect.top;
+        drawState.rectEl = null;
+      });
+      chartEl.addEventListener('mousemove', function(e) {
+        if (activeDrawTool !== 'rectangle' || drawState.startX === undefined) return;
+        var rect = chartEl.getBoundingClientRect();
+        var x = e.clientX - rect.left;
+        var y = e.clientY - rect.top;
+        var svg = document.getElementById('drawSvg');
+        if (!svg) return;
+        if (!drawState.rectEl) {
+          drawState.rectEl = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          drawState.rectEl.setAttribute('fill', isDark() ? 'rgba(66,165,245,0.15)' : 'rgba(25,118,210,0.12)');
+          drawState.rectEl.setAttribute('stroke', isDark() ? '#42a5f5' : '#1976d2');
+          drawState.rectEl.setAttribute('stroke-width', '1.5');
+          drawState.rectEl.setAttribute('stroke-dasharray', '4,2');
+          drawState.rectEl.classList.add('draw-rect');
+          svg.appendChild(drawState.rectEl);
+        }
+        var rx = Math.min(drawState.startX, x);
+        var ry = Math.min(drawState.startY, y);
+        var rw = Math.abs(x - drawState.startX);
+        var rh = Math.abs(y - drawState.startY);
+        drawState.rectEl.setAttribute('x', rx);
+        drawState.rectEl.setAttribute('y', ry);
+        drawState.rectEl.setAttribute('width', rw);
+        drawState.rectEl.setAttribute('height', rh);
+      });
+      chartEl.addEventListener('mouseup', function(e) {
+        if (activeDrawTool !== 'rectangle' || !drawState.rectEl) return;
+        var rect = chartEl.getBoundingClientRect();
+        var x = e.clientX - rect.left;
+        var y = e.clientY - rect.top;
+        // Only keep if dragged enough distance
+        if (Math.abs(x - drawState.startX) < 5 && Math.abs(y - drawState.startY) < 5) {
+          try { drawState.rectEl.remove(); } catch(ex) {}
+          drawState.rectEl = null;
+          drawState.startX = undefined;
+          return;
+        }
+        var cs = ChartManager.getCandleSeries();
+        var p1 = cs ? cs.coordinateToPrice(drawState.startY) : null;
+        var p2 = cs ? cs.coordinateToPrice(y) : null;
+        if (typeof p1 === 'object') p1 = p1.price || p1.value;
+        if (typeof p2 === 'object') p2 = p2.price || p2.value;
+        var label = '';
+        if (typeof p1 === 'number' && typeof p2 === 'number') {
+          label = '¥' + Math.max(p1, p2).toFixed(2) + ' - ¥' + Math.min(p1, p2).toFixed(2);
+        }
+        var rectEl = drawState.rectEl;
+        rectEl.setAttribute('data-label', label);
+        drawings.push({type:'r',el:rectEl});
+        drawState.rectEl = null;
+        drawState.startX = undefined;
+        showToast('✓ 矩形框已画');
+        activateDrawTool(null);
+      });
+    }
 
     // theme
     on($('#themeToggle'),'click',function(){
@@ -146,10 +272,12 @@ const App = (() => {
   // Fix the side toggle - currentSide should be set BEFORE calling updateEstimate
   function switchPanelTab(tab) {
     $$('.panel-tab').forEach(function(t){t.classList.toggle('active',t.dataset.tab===tab);});
-    var pages = {orderbook:'#pageOrderBook',trade:'#pageTrade',positions:'#pagePositions'};
+    var pages = {orderbook:'#pageOrderBook',trade:'#pageTrade',positions:'#pagePositions',backtest:'#pageBacktest',analytics:'#pageAnalytics'};
     Object.keys(pages).forEach(function(k){var e=$(pages[k]);if(e)e.classList.toggle('active',k===tab);});
     if (tab==='positions') updatePositions();
     if (tab==='trade') { val('#tradePrice',sim.getPrice().toFixed(2)); updateEstimate(); }
+    if (tab==='backtest') initBacktestPanel();
+    if (tab==='analytics') { if (typeof Analytics !== 'undefined') Analytics.refresh(); }
   }
 
   function updateTradeBtn() {
@@ -179,7 +307,8 @@ const App = (() => {
       showToast(r.message);
       val('#tradeShares',''); val('#tradeSL',''); val('#tradeTP','');
       updateCapitalBar(); updateHistory(); updatePositions();
-      renderStockList(); // refresh stock list prices
+      initWatchlistUI();
+    renderStockList(); // refresh stock list prices
     } else showToast(r.message,'error');
   }
 
@@ -207,7 +336,52 @@ const App = (() => {
       showToast(t.reason+(t.result.success?' 已平仓':''),t.result.success?'':'error');
       if(t.result.success){updateCapitalBar();updateHistory();updatePositions();Trader.save();}
     });
+
+    // Check alerts
+    if (typeof AlertManager !== 'undefined') {
+      var lcCandle = sim.getLatestCandle();
+      var alertData = { symbol: curSym, price: sim.getPrice(), time: lcCandle ? lcCandle.time : Date.now() };
+      // Approximate RSI/KDJ from chart module
+      try {
+        var clArr = sim.getCandles().map(function(c){return c.close;});
+        if (clArr.length > 14) {
+          var rv = calcRSI(clArr, 14);
+          alertData.rsi = rv[rv.length - 1];
+        }
+        if (clArr.length > 9) {
+          var hiArr = sim.getCandles().map(function(c){return c.high;});
+          var loArr = sim.getCandles().map(function(c){return c.low;});
+          var kdjV = calcKDJ(hiArr, loArr, clArr, 9, 3, 3);
+          if (kdjV && kdjV[kdjV.length-1]) {
+            alertData.kdjK = kdjV[kdjV.length-1].k;
+            alertData.kdjD = kdjV[kdjV.length-1].d;
+          }
+        }
+      } catch(e) {}
+      var triggeredAlerts = AlertManager.check(alertData);
+      triggeredAlerts.forEach(function(ta){
+        showToast('🔔 ' + ta.message, '');
+        renderAlertList();
+      });
+    }
+
+    // Check pending order book (limit/stop/bracket orders)
+    var orderTrig = Trader.checkOrderBook();
+    orderTrig.forEach(function(t){
+      showToast(t.reason+(t.result && t.result.success?' 已成交':''));
+      if(t.result && t.result.success){updateCapitalBar();updateHistory();updatePositions();Trader.save();}
+    });
+
+    // Pattern detection and rendering
+    updatePatterns(candles);
+
+    // Overlay comparison update
+    if (overlayActive && overlayStocks.length > 0) updateOverlayComparison();
+
     saveCnt++; if(saveCnt>=30){Trader.save();saveCnt=0;}
+
+    // Periodic persistence (every ~10s at default speed)
+    if (saveCnt % 50 === 0) savePersistedState();
   }
 
   // ── Controls ──
@@ -230,7 +404,7 @@ const App = (() => {
   }
 
   // ── UI Updates ──
-  function updateAll(){updatePriceBar();updateOrderBook();updateCandleCount();updateStockListPrices();updateCapitalBar();updateEquityCurve();var tp=$('#tradePrice');if(tp&&!tp.value)tp.value=sim.getPrice().toFixed(2);}
+  function updateAll(){updatePriceBar();updateOrderBook();updateCandleCount();updateStockListPrices();updateCapitalBar();updateEquityCurve();updateStatusHint();var tp=$('#tradePrice');if(tp&&!tp.value)tp.value=sim.getPrice().toFixed(2);}
 
   function updatePriceBar() {
     var l = sim.getLatestCandle(); if(!l)return;
@@ -313,13 +487,15 @@ const App = (() => {
 
   // ── Drawings ──
   function activateDrawTool(tool){
-    if(activeDrawTool===tool){activeDrawTool=null;trendPts=[];}
-    else {activeDrawTool=tool;trendPts=[];}
+    if(activeDrawTool===tool){activeDrawTool=null;drawState.pts=[];trendPts=[];}
+    else {activeDrawTool=tool;drawState.pts=[];trendPts=[];}
     document.body.classList.toggle('drawing-crosshair',!!activeDrawTool);
     $$('.draw-btn').forEach(function(b){b.classList.toggle('active-tool',b.dataset.tool===activeDrawTool);});
     if (activeDrawTool) {
-      showToast((activeDrawTool==='trend'?'📐 趋势线：点击K线图选两点':'➖ 水平线：点击K线图定位')+' · Esc取消');
-    }
+      var hints = {trend:'📐 趋势线：点击两点',horizontal:'➖ 水平线：点击定位',fibonacci:'📏 斐波那契：点击高点再点击低点',rectangle:'⬜ 矩形框：拖拽绘制',text:'🔤 文字标注：点击放置',measure:'📐 测量：点击起点再点击终点'};
+      showToast((hints[activeDrawTool]||activeDrawTool)+' · Esc取消');
+      updateStatusHint();
+    } else { updateStatusHint(); }
   }
 
   function handleDrawClick(e) {
@@ -330,24 +506,68 @@ const App = (() => {
     var x = e.clientX - rect.left;
     var y = e.clientY - rect.top;
 
-    if (activeDrawTool === 'horizontal') {
-      var cs = ChartManager.getCandleSeries();
-      if (!cs) return;
-      var price = cs.coordinateToPrice(y);
-      if (price == null) return;
-      if (typeof price === 'object') price = price.price || price.value;
-      if (typeof price !== 'number') return;
-      addHLine(+price.toFixed(2));
-      activateDrawTool(null);
-    } else if (activeDrawTool === 'trend') {
-      trendPts.push({ x: x, y: y });
-      if (trendPts.length === 2) {
-        addTLine(trendPts[0].x, trendPts[0].y, trendPts[1].x, trendPts[1].y);
-        trendPts = [];
-        activateDrawTool(null);
-      } else {
-        showToast('第1点已选 ✓ 请再次点击K线图选第2点');
+    var cs = ChartManager.getCandleSeries();
+    var price = null;
+    if (cs) {
+      var raw = cs.coordinateToPrice(y);
+      if (raw != null) {
+        if (typeof raw === 'object') price = raw.price || raw.value;
+        else price = raw;
       }
+    }
+
+    switch (activeDrawTool) {
+      case 'horizontal':
+        if (price == null || typeof price !== 'number') return;
+        addHLine(+price.toFixed(2));
+        activateDrawTool(null);
+        break;
+
+      case 'trend':
+        trendPts.push({ x: x, y: y });
+        if (trendPts.length === 2) {
+          addTLine(trendPts[0].x, trendPts[0].y, trendPts[1].x, trendPts[1].y);
+          trendPts = [];
+          activateDrawTool(null);
+        } else {
+          showToast('第1点已选 ✓ 请再次点击K线图选第2点');
+        }
+        break;
+
+      case 'fibonacci':
+        if (price == null || typeof price !== 'number') return;
+        drawState.pts.push({ x: x, y: y, price: price });
+        if (drawState.pts.length === 2) {
+          addFibonacci(drawState.pts[0].price, drawState.pts[1].price);
+          drawState.pts = [];
+          activateDrawTool(null);
+        } else {
+          showToast('高点已选 ✓ 请点击低点');
+        }
+        break;
+
+      case 'text':
+        var txtIn = prompt('输入标注文字:');
+        if (txtIn && txtIn.trim()) {
+          addTextAnnotation(x, y, txtIn.trim());
+        }
+        activateDrawTool(null);
+        break;
+
+      case 'measure':
+        drawState.pts.push({ x: x, y: y, price: price });
+        if (drawState.pts.length === 2) {
+          addMeasure(drawState.pts[0], drawState.pts[1]);
+          drawState.pts = [];
+          activateDrawTool(null);
+        } else {
+          showToast('起点已选 ✓ 请点击终点');
+        }
+        break;
+
+      case 'rectangle':
+        // Rectangle uses mousedown/mousemove/mouseup — handled separately
+        break;
     }
   }
   function addHLine(price){
@@ -456,6 +676,7 @@ const App = (() => {
     if(!sym){showToast('请输入股票代码','error');return;}
     Simulator.addStock(sym,{name:name,basePrice:bp,annualVol:vol,trend:tr,sector:sector,limitPct:limit});
     var m=$('#stockModal');if(m)m.style.display='none';
+    initWatchlistUI();
     renderStockList();showToast(sym+' '+name+' 已添加');switchStock(sym);
   }
 
@@ -564,10 +785,623 @@ const App = (() => {
     if(typeof LightweightCharts==='undefined'){setTimeout(start,100);return;}
     init();
   }
+
+  // ── 波动率自动更新 ──
+  function initVolatility() {
+    var badge = document.getElementById('volatilityBadge');
+    if (!badge) return;
+
+    // 初始状态
+    badge.textContent = '📡 检查中';
+    badge.className = 'volatility-badge fetching';
+
+    // 点击手动刷新
+    badge.addEventListener('click', function() {
+      if (badge.className.indexOf('fetching') >= 0) return; // 正在更新中
+      badge.textContent = '📡 更新中';
+      badge.className = 'volatility-badge fetching';
+      VolatilityUpdater.forceRefresh(function(result) {
+        updateVolatilityBadge(result);
+        // 重建当前股票的模拟器实例以应用新波动率
+        rebuildCurrentSim();
+      });
+    });
+
+    // 异步初始化（先应用缓存，必要时联网更新）
+    VolatilityUpdater.init(function(result) {
+      updateVolatilityBadge(result);
+      // 如果波动率有更新，重建模拟器
+      if (result && result.success > 0) {
+        rebuildCurrentSim();
+      }
+    });
+  }
+
+  function updateVolatilityBadge(result) {
+    var badge = document.getElementById('volatilityBadge');
+    if (!badge) return;
+
+    var cacheAge = VolatilityUpdater.getCacheAge();
+    var isExpired = VolatilityUpdater.isCacheExpired();
+
+    if (result && result.success > 0) {
+      // 网络更新成功 → 绿色"实时"
+      badge.textContent = '📡 实时 ' + result.success + '/' + result.total;
+      badge.className = 'volatility-badge live';
+      badge.title = '波动率数据已更新\n' + result.updatedAt + '\n点击可手动刷新';
+    } else if (!isExpired && cacheAge < Infinity) {
+      // 缓存有效 → 橙色"缓存"
+      var hours = Math.floor(cacheAge / 3600000);
+      badge.textContent = '📡 缓存 ' + (hours > 0 ? hours + 'h前' : '刚才');
+      badge.className = 'volatility-badge cached';
+      badge.title = '使用缓存波动率数据 (' + VolatilityUpdater.getLastUpdateStr() + ')\n点击手动刷新';
+    } else {
+      // 无缓存 + 网络失败 → 红色"离线"
+      badge.textContent = '📡 离线';
+      badge.className = 'volatility-badge error';
+      badge.title = '无法获取波动率数据，使用内置默认值\n点击重试';
+    }
+  }
+
+  function rebuildCurrentSim() {
+    // 波动率已自动从 STOCKS 读取，无需重建实例
+    // 仅刷新股票列表显示
+    initWatchlistUI();
+    renderStockList();
+  }
+
+  // ── 策略回测面板 ──
+  var btInitialized = false;
+  function initBacktestPanel() {
+    if (btInitialized) return;
+    btInitialized = true;
+
+    var btSym = $('#btSymbol');
+    if (btSym) {
+      var syms = Object.keys(Simulator.STOCKS);
+      btSym.innerHTML = syms.map(function(sym) {
+        var cfg = Simulator.STOCKS[sym];
+        return '<option value="' + sym + '"' + (sym === curSym ? ' selected' : '') + '>' + cfg.name + ' (' + sym + ')</option>';
+      }).join('');
+    }
+
+    var btPreset = $('#btPreset');
+    if (btPreset && typeof BacktestEngine !== 'undefined') {
+      var presets = BacktestEngine.PRESETS;
+      btPreset.innerHTML = Object.keys(presets).map(function(key) {
+        return '<option value="' + key + '">' + presets[key].name + '</option>';
+      }).join('');
+    }
+
+    on($('#btnRunBacktest'), 'click', runBacktest);
+  }
+
+  function runBacktest() {
+    if (typeof BacktestEngine === 'undefined') { showToast('回测引擎未加载', 'error'); return; }
+    var sym = val('#btSymbol') || curSym;
+    var presetKey = val('#btPreset') || 'rsi_oversold';
+    var capital = parseFloat(val('#btCapital')) || 100000;
+    var config = BacktestEngine.PRESETS[presetKey];
+    if (!config) { showToast('请选择策略模板', 'error'); return; }
+
+    config = Object.assign({}, config, { initialCapital: capital, warmupBars: 50 });
+    showToast('正在回测 ' + config.name + '...');
+
+    setTimeout(function() {
+      var result = BacktestEngine.runAndSave(sym, config);
+      if (result.error) { showToast(result.error, 'error'); return; }
+      displayBacktestResults(result);
+      showToast('回测完成：' + result.stats.totalTrades + '笔交易');
+    }, 100);
+  }
+
+  function displayBacktestResults(result) {
+    var s = result.stats;
+    var cards = [
+      { v: '¥' + s.finalCapital.toLocaleString(), l: '最终资金', c: s.totalReturn >= 0 ? 'win' : 'lose' },
+      { v: (s.totalReturn >= 0 ? '+' : '') + s.totalReturn + '%', l: '总收益率', c: s.totalReturn >= 0 ? 'win' : 'lose' },
+      { v: s.sharpeRatio, l: '夏普比率', c: s.sharpeRatio >= 1 ? 'win' : s.sharpeRatio >= 0 ? 'neutral' : 'lose' },
+      { v: s.maxDrawdown + '%', l: '最大回撤', c: 'lose' },
+      { v: s.winRate + '%', l: '胜率', c: s.winRate >= 50 ? 'win' : 'lose' },
+      { v: s.profitFactor, l: '盈亏比', c: s.profitFactor >= 1.5 ? 'win' : 'neutral' },
+      { v: s.totalTrades, l: '总交易', c: 'neutral' },
+      { v: '¥' + s.avgWin.toLocaleString(), l: '平均盈利', c: 'win' },
+      { v: '¥' + s.avgLoss.toLocaleString(), l: '平均亏损', c: 'lose' },
+      { v: '¥' + s.largestWin.toLocaleString(), l: '最大盈利', c: 'win' },
+      { v: '¥' + s.largestLoss.toLocaleString(), l: '最大亏损', c: 'lose' },
+      { v: s.avgHoldingBars + '根', l: '平均持仓', c: 'neutral' },
+    ];
+    htm('#btStatsGrid', cards.map(function(c) {
+      return '<div class="bt-stat-card ' + c.c + '"><div class="bt-stat-val">' + c.v + '</div><div class="bt-stat-lbl">' + c.l + '</div></div>';
+    }).join(''));
+
+    var tradesHtml = result.trades.slice(-20).reverse().map(function(t) {
+      return '<div class="bt-trade-item">' +
+        '<span class="bt-trade-side entry">买</span>' +
+        '<span class="bt-trade-info">@' + t.entryPrice.toFixed(2) + '→' + t.exitPrice.toFixed(2) + '</span>' +
+        '<span class="bt-trade-side exit">' + t.exitReason + '</span>' +
+        '<span class="bt-trade-pnl ' + (t.pnl >= 0 ? 'up' : 'down') + '">' + (t.pnl >= 0 ? '+' : '') + '¥' + t.pnl.toFixed(0) + '</span>' +
+        '</div>';
+    }).join('') || '<div class="history-empty">无交易记录</div>';
+    htm('#btTradesList', tradesHtml);
+
+    var re = $('#backtestResults'), ee = $('#backtestEmpty');
+    if (re) re.style.display = '';
+    if (ee) ee.style.display = 'none';
+  }
+
+  // ── 形态识别 ──
+  function initPatterns() {
+    var chartEl = document.getElementById('mainChart');
+    if (chartEl && typeof PatternDetector !== 'undefined') {
+      PatternDetector.initSvg(chartEl);
+    }
+    renderPatternList();
+  }
+
+  function updatePatterns(candles) {
+    if (typeof PatternDetector === 'undefined') return;
+    var patterns = PatternDetector.detect(candles);
+    var chartEl = document.getElementById('mainChart');
+    var mainChart = ChartManager.getMainChart();
+    if (chartEl && mainChart && patterns.length > 0) {
+      PatternDetector.renderMarkers(patterns, chartEl, mainChart);
+    } else if (chartEl) {
+      PatternDetector.clearMarkers(chartEl);
+    }
+  }
+
+  function renderPatternList() {
+    var container = document.getElementById('patternList');
+    if (!container || typeof PatternDetector === 'undefined') return;
+    var list = PatternDetector.getPatternList ? PatternDetector.getPatternList() : [];
+    var html = '';
+    list.forEach(function(m) {
+      var id = m.id;
+      var checked = PatternDetector.isPatternEnabled ? PatternDetector.isPatternEnabled(id) : true;
+      var dotClass = m.type === 'bullish' || m.type === 'reversal-bull' ? 'bullish'
+        : m.type === 'bearish' || m.type === 'reversal-bear' ? 'bearish' : 'neutral';
+      html += '<div class="pattern-item" data-pattern="' + id + '" title="' + (m.name || id) + '">'
+        + '<span class="pattern-type-dot ' + dotClass + '"></span>'
+        + '<input type="checkbox" ' + (checked ? 'checked' : '') + ' onchange="App.togglePattern(\'' + id + '\', this.checked)">'
+        + '<span>' + (m.name || id) + '</span>'
+        + '</div>';
+    });
+    container.innerHTML = html;
+  }
+
+  function togglePatternPanel() {
+    patternPanelOpen = !patternPanelOpen;
+    var list = document.getElementById('patternList');
+    var icon = document.getElementById('patternPanelIcon');
+    if (list) list.style.display = patternPanelOpen ? '' : 'none';
+    if (icon) icon.className = 'collapse-icon' + (patternPanelOpen ? '' : ' collapsed');
+  }
+
+  function togglePattern(key, checked) {
+    if (typeof PatternDetector !== 'undefined' && PatternDetector.setPatternEnabled) {
+      PatternDetector.setPatternEnabled(key, checked);
+    }
+  }
+
+  // ── 多股对比覆盖 ──
+  function toggleOverlay() {
+    overlayActive = !overlayActive;
+    var btn = document.getElementById('btnOverlayToggle');
+    if (btn) btn.classList.toggle('active-tool', overlayActive);
+
+    if (overlayActive) {
+      overlayStocks = overlayStocks.length === 0 ? [curSym] : overlayStocks;
+      ChartManager.showOverlay(overlayStocks);
+      showToast('多股对比模式已开启，勾选左侧股票参与对比（最多5只）');
+      initWatchlistUI();
+    renderStockList();
+      updateOverlayComparison();
+    } else {
+      overlayStocks = [];
+      ChartManager.hideOverlay();
+      initWatchlistUI();
+    renderStockList();
+    }
+  }
+
+  function toggleOverlayStock(sym) {
+    var idx = overlayStocks.indexOf(sym);
+    if (idx >= 0) {
+      overlayStocks.splice(idx, 1);
+    } else {
+      if (overlayStocks.length >= 5) {
+        showToast('最多只能选择5只股票进行对比', 'error');
+        return;
+      }
+      overlayStocks.push(sym);
+    }
+    ChartManager.showOverlay(overlayStocks);
+    updateOverlayComparison();
+    initWatchlistUI();
+    renderStockList();
+  }
+
+  function updateOverlayComparison() {
+    if (overlayStocks.length === 0) return;
+
+    var stockData = [];
+    var colors = ['#ff5252', '#42a5f5', '#ff9800', '#ce93d8', '#66bb6a'];
+
+    overlayStocks.forEach(function(sym, si) {
+      var inst = Simulator.get(sym);
+      if (!inst) return;
+      var candles = inst.getCandles();
+      if (!candles || candles.length < 2) return;
+      var cfg = Simulator.STOCKS[sym];
+      var baseClose = candles[0].close;
+      if (baseClose <= 0) return;
+      var prices = candles.map(function(c) {
+        return { time: c.time, value: +((c.close / baseClose) * 100).toFixed(2) };
+      });
+      stockData.push({
+        symbol: sym,
+        name: (cfg ? cfg.name : sym) || sym,
+        color: colors[si % colors.length],
+        prices: prices
+      });
+    });
+
+    if (typeof ChartManager !== 'undefined' && ChartManager.updateOverlay) {
+      ChartManager.updateOverlay(stockData);
+    }
+  }
+
+// ════════ MISSING INTEGRATION — injected before return ════════
+
+  // ── Drawing: Update activateDrawTool to support new tools ──
+  var _origActivateDraw = activateDrawTool;
+  activateDrawTool = function(tool) {
+    if (activeDrawTool === tool) { activeDrawTool = null; trendPts = []; drawState.pts = []; }
+    else { activeDrawTool = tool; trendPts = []; drawState.pts = []; }
+    document.body.classList.toggle('drawing-crosshair', !!activeDrawTool);
+    $$('.draw-btn').forEach(function(b) { b.classList.toggle('active-tool', b.dataset.tool === activeDrawTool); });
+    if (activeDrawTool) {
+      var tips = { trend: '📐 趋势线：点击K线图选两点', horizontal: '➖ 水平线：点击K线图定位',
+        fibonacci: '📏 斐波那契：先点高点再点低点', rectangle: '⬜ 矩形框：拖拽绘制',
+        text: '🔤 文字标注：点击放置', measure: '📐 测量：点击两点' };
+      showToast((tips[activeDrawTool] || activeDrawTool) + ' · Esc取消');
+    }
+  };
+
+  // ── Drawing: Update handleDrawClick ──
+  function getPriceFromY(y) {
+    var cs = ChartManager.getCandleSeries();
+    if (!cs) return null;
+    var price = cs.coordinateToPrice(y);
+    if (price == null) return null;
+    if (typeof price === 'object') price = price.price || price.value;
+    return typeof price === 'number' ? price : null;
+  }
+
+  var _origHandleDrawClick = handleDrawClick;
+  handleDrawClick = function(e) {
+    if (!activeDrawTool) return;
+    var el = document.getElementById('mainChart');
+    if (!el) return;
+    var rect = el.getBoundingClientRect();
+    var x = e.clientX - rect.left, y = e.clientY - rect.top;
+
+    if (activeDrawTool === 'horizontal') {
+      var price = getPriceFromY(y);
+      if (price == null) return;
+      addHLine(+price.toFixed(2));
+      activateDrawTool(null);
+    } else if (activeDrawTool === 'trend') {
+      trendPts.push({ x: x, y: y });
+      if (trendPts.length === 2) {
+        addTLine(trendPts[0].x, trendPts[0].y, trendPts[1].x, trendPts[1].y);
+        trendPts = []; activateDrawTool(null);
+      } else { showToast('第1点已选 ✓ 请再次点击K线图选第2点'); }
+    } else if (activeDrawTool === 'fibonacci') {
+      drawState.pts.push({ x: x, y: y, price: getPriceFromY(y) });
+      if (drawState.pts.length === 2) {
+        addFibonacci(drawState.pts[0], drawState.pts[1]);
+        drawState.pts = []; activateDrawTool(null);
+      } else { showToast('高点已选 ✓ 请点击低点'); }
+    } else if (activeDrawTool === 'rectangle') {
+      if (!drawState.rectEl) {
+        drawState.startX = x; drawState.startY = y;
+        var svg = document.getElementById('drawSvg');
+        if (!svg) return;
+        var rectEl = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rectEl.setAttribute('x', x); rectEl.setAttribute('y', y);
+        rectEl.setAttribute('width', '0'); rectEl.setAttribute('height', '0');
+        rectEl.setAttribute('fill', isDark() ? 'rgba(66,165,245,0.15)' : 'rgba(25,118,210,0.1)');
+        rectEl.setAttribute('stroke', isDark() ? '#42a5f5' : '#1976d2');
+        rectEl.setAttribute('stroke-width', '1.5'); rectEl.setAttribute('stroke-dasharray', '4,2');
+        svg.appendChild(rectEl); drawState.rectEl = rectEl;
+        showToast('拖拽调整矩形，再次点击确认');
+        var onMove = function(ev) {
+          if (!drawState.rectEl) return;
+          var r = el.getBoundingClientRect();
+          var mx = ev.clientX - r.left, my = ev.clientY - r.top;
+          var rx = Math.min(drawState.startX, mx), ry = Math.min(drawState.startY, my);
+          drawState.rectEl.setAttribute('x', rx); drawState.rectEl.setAttribute('y', ry);
+          drawState.rectEl.setAttribute('width', Math.abs(mx - drawState.startX));
+          drawState.rectEl.setAttribute('height', Math.abs(my - drawState.startY));
+        };
+        el._rectMove = onMove; el.addEventListener('mousemove', onMove);
+      } else {
+        el.removeEventListener('mousemove', el._rectMove);
+        var p1 = getPriceFromY(drawState.startY), p2 = getPriceFromY(y);
+        var label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        label.setAttribute('x', Math.min(drawState.startX, x) + 4);
+        label.setAttribute('y', Math.min(drawState.startY, y) + 14);
+        label.setAttribute('fill', isDark() ? '#42a5f5' : '#1976d2');
+        label.setAttribute('font-size', '10'); label.setAttribute('font-family', 'monospace');
+        label.textContent = (p1 && p2) ? '¥' + Math.min(p1, p2).toFixed(2) + ' ~ ¥' + Math.max(p1, p2).toFixed(2) : '';
+        drawState.rectEl.parentNode.appendChild(label);
+        drawings.push({ type: 'rect', el: drawState.rectEl, label: label });
+        drawState.rectEl = null; activateDrawTool(null);
+        showToast('✓ 矩形区域已标注');
+      }
+    } else if (activeDrawTool === 'text') {
+      var txt = prompt('请输入标注文字：', '');
+      if (txt) { addTextAnnotation(x, y, txt); showToast('✓ 文字标注已添加'); }
+      activateDrawTool(null);
+    } else if (activeDrawTool === 'measure') {
+      drawState.pts.push({ x: x, y: y, price: getPriceFromY(y) });
+      if (drawState.pts.length === 2) {
+        addMeasure(drawState.pts[0], drawState.pts[1]);
+        drawState.pts = []; activateDrawTool(null);
+      } else { showToast('起点已选 ✓ 请点击终点'); }
+    }
+  };
+
+  // ── New Drawing Functions ──
+  function addFibonacci(p1, p2) {
+    var svg = document.getElementById('drawSvg');
+    if (!svg) return;
+    var levels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0];
+    var hi = p1.price > p2.price ? p1 : p2, lo = p1.price > p2.price ? p2 : p1;
+    var cs = ChartManager.getCandleSeries();
+    if (!cs) return;
+    var vLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    vLine.setAttribute('x1', p1.x); vLine.setAttribute('y1', p1.y);
+    vLine.setAttribute('x2', p2.x); vLine.setAttribute('y2', p2.y);
+    vLine.setAttribute('stroke', 'rgba(255,152,0,0.5)'); vLine.setAttribute('stroke-width', '1');
+    svg.appendChild(vLine); drawings.push({ type: 'fib', el: vLine });
+    levels.forEach(function(r) {
+      try {
+        var price = hi.price - (hi.price - lo.price) * r;
+        var pl = cs.createPriceLine({
+          price: +price.toFixed(2), color: r === 0 || r === 1.0 ? '#ff9800' : 'rgba(255,152,0,0.4)',
+          lineWidth: r === 0 || r === 1.0 ? 2 : 1, lineStyle: r === 0 || r === 1.0 ? 0 : 1,
+          axisLabelVisible: true, title: (r * 100).toFixed(1) + '% ¥' + price.toFixed(2)
+        });
+        drawings.push({ type: 'fibLine', pl: pl, series: cs });
+      } catch(e) {}
+    });
+    showToast('✓ 斐波那契回撤 (' + levels.length + '档)');
+  }
+
+  function addTextAnnotation(x, y, text) {
+    var svg = document.getElementById('drawSvg');
+    if (!svg) return;
+    var txtEl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    txtEl.setAttribute('x', x); txtEl.setAttribute('y', y);
+    txtEl.setAttribute('fill', isDark() ? '#ffeb3b' : '#f57f17');
+    txtEl.setAttribute('font-size', '13'); txtEl.setAttribute('font-weight', '600');
+    txtEl.textContent = text;
+    txtEl.addEventListener('dblclick', function(ev) {
+      ev.stopPropagation();
+      var newTxt = prompt('编辑标注：', txtEl.textContent);
+      if (newTxt !== null) txtEl.textContent = newTxt || txtEl.textContent;
+    });
+    svg.appendChild(txtEl); drawings.push({ type: 'text', el: txtEl });
+  }
+
+  function addMeasure(p1, p2) {
+    var svg = document.getElementById('drawSvg');
+    if (!svg) return;
+    var line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', p1.x); line.setAttribute('y1', p1.y);
+    line.setAttribute('x2', p2.x); line.setAttribute('y2', p2.y);
+    line.setAttribute('stroke', isDark() ? '#ce93d8' : '#7b1fa2');
+    line.setAttribute('stroke-width', '1.5'); line.setAttribute('stroke-dasharray', '6,3');
+    svg.appendChild(line); drawings.push({ type: 'measure', el: line });
+    var mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
+    var diff = p1.price && p2.price ? Math.abs(p2.price - p1.price).toFixed(2) : '--';
+    var pct = p1.price && p2.price ? (((p2.price - p1.price) / p1.price) * 100).toFixed(2) : '--';
+    var label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    label.setAttribute('x', mx + 4); label.setAttribute('y', my - 6);
+    label.setAttribute('fill', isDark() ? '#ce93d8' : '#7b1fa2');
+    label.setAttribute('font-size', '10'); label.textContent = 'Δ¥' + diff + ' (' + (pct >= 0 ? '+' : '') + pct + '%)';
+    svg.appendChild(label); drawings.push({ type: 'measure', el: label });
+    showToast('✓ 测量: Δ¥' + diff + ' (' + pct + '%)');
+  }
+
+  // ── Updated clearDrawings ──
+  var _origClearDrawings = clearDrawings;
+  clearDrawings = function() {
+    drawings.forEach(function(d) {
+      if ((d.type === 'h' || d.type === 'fibLine') && d.pl && d.series) { try { d.series.removePriceLine(d.pl); } catch(e) {} }
+      if (d.el) { try { d.el.remove(); } catch(e) {} }
+      if (d.label) { try { d.label.remove(); } catch(e) {} }
+    });
+    drawings = []; drawState.rectEl = null; drawState.pts = [];
+    activateDrawTool(null);
+    showToast('已清除所有画线');
+  };
+
+  // ── Missing App Methods ──
+  function toggleAlertPanel() {
+    var cfg = Simulator.STOCKS[curSym];
+    var currentPrice = sim.getPrice();
+    var priceStr = prompt('设置价格警报 — ' + cfg.name + ' (' + curSym + ')\n当前价格: ¥' + currentPrice.toFixed(2) + '\n\n请输入触发价格:');
+    if (!priceStr) return;
+    var triggerPrice = parseFloat(priceStr);
+    if (isNaN(triggerPrice)) { showToast('价格无效', 'error'); return; }
+    var direction = triggerPrice > currentPrice ? 'above' : 'below';
+    if (typeof AlertManager !== 'undefined') {
+      AlertManager.add({ symbol: curSym, type: 'price', direction: direction, price: triggerPrice, stockName: cfg.name });
+    }
+    showToast('✓ 警报已设置: ' + cfg.name + ' 价格' + (direction === 'above' ? '突破' : '跌破') + '¥' + triggerPrice.toFixed(2));
+  }
+
+  function showEquityModal() {
+    var summary = Trader.getSummary();
+    var trades = Trader.getTrades(999);
+    var html = '<div style="padding:12px;max-height:70vh;overflow-y:auto">';
+    html += '<h3 style="margin-bottom:8px">📊 权益分析</h3>';
+    html += '<p>总资产: ¥' + summary.totalAssets.toLocaleString() + '</p>';
+    html += '<p>总盈亏: ¥' + summary.totalPnL.toFixed(2) + ' (' + summary.totalPnLPct + '%)</p>';
+    html += '<p>交易次数: ' + summary.tradeCount + ' | 持仓: ' + summary.positionCount + '</p>';
+    if (trades.length > 0) {
+      html += '<table style="width:100%;font-size:10px;margin-top:8px;border-collapse:collapse"><tr style="border-bottom:1px solid var(--border)"><th>时间</th><th>方向</th><th>价格</th><th>数量</th></tr>';
+      trades.slice(0, 15).forEach(function(t) {
+        html += '<tr><td>' + new Date(t.time).toLocaleTimeString() + '</td><td style="color:' + (t.side === 'buy' ? 'var(--up-color)' : 'var(--down-color)') + '">' + (t.side === 'buy' ? '买入' : '卖出') + '</td><td>¥' + t.price.toFixed(2) + '</td><td>' + t.shares + '股</td></tr>';
+      });
+      html += '</table>';
+    }
+    html += '</div>';
+    var overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:3000;display:flex;align-items:center;justify-content:center';
+    overlay.innerHTML = '<div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;max-width:440px;width:90%;color:var(--text-primary)">' + html + '<div style="padding:8px 12px;text-align:right"><button style="padding:4px 16px;border:1px solid var(--border);border-radius:4px;background:var(--bg-input);color:var(--text-primary);cursor:pointer" onclick="this.closest(\'div\').parentElement.parentElement.remove()">关闭</button></div></div>';
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
+  }
+
+  // ── Init: Watchlist tabs, sort, col config, patterns, restore state ──
+  function initWatchlistUI() {
+    // Tabs
+    $$('.wl-tab').forEach(function(tab) {
+      tab.addEventListener('click', function() {
+        wlTab = tab.dataset.group;
+        $$('.wl-tab').forEach(function(t) { t.classList.toggle('active', t.dataset.group === wlTab); });
+        initWatchlistUI();
+    renderStockList();
+        try { localStorage.setItem('kline_watchlist_tab', wlTab); } catch(e) {}
+      });
+    });
+
+    // Sort
+    var ss = $('#wlSortSelect');
+    if (ss) ss.addEventListener('change', function() { wlSort = ss.value; renderStockList();
+      try { localStorage.setItem('kline_watchlist_sort', wlSort); } catch(e) {} });
+
+    // Column config
+    var ccb = $('#btnColConfig'), ccp = $('#colConfigPopover');
+    if (ccb && ccp) {
+      ccb.addEventListener('click', function(e) { e.stopPropagation(); ccp.style.display = ccp.style.display === 'none' ? 'block' : 'none'; });
+      document.addEventListener('click', function() { ccp.style.display = 'none'; });
+      ccp.querySelectorAll('input[type=checkbox]').forEach(function(cb) {
+        cb.addEventListener('change', function() { wlCols[cb.dataset.col] = cb.checked; renderStockList();
+          try { localStorage.setItem('kline_watchlist_cols', JSON.stringify(wlCols)); } catch(e) {} });
+      });
+    }
+
+    // Context menu
+    var ctxMenuEl = document.getElementById('ctxMenu');
+    var ctxTarget = null;
+    if (ctxMenuEl) {
+      document.addEventListener('click', function() { ctxMenuEl.style.display = 'none'; });
+      ctxMenuEl.querySelectorAll('.ctx-item').forEach(function(item) {
+        item.addEventListener('click', function() {
+          var action = item.dataset.action;
+          if (action === 'switch' && ctxTarget) switchStock(ctxTarget);
+          else if (action === 'addZixuan' && ctxTarget) { if (zixuan.indexOf(ctxTarget) < 0) { zixuan.push(ctxTarget); saveZixuan(); renderStockList(); } }
+          else if (action === 'removeZixuan' && ctxTarget) { zixuan = zixuan.filter(function(s) { return s !== ctxTarget; }); saveZixuan(); renderStockList(); }
+          else if (action === 'setAlert' && ctxTarget) toggleAlertPanel();
+          ctxMenuEl.style.display = 'none';
+        });
+      });
+      // Show on right-click
+      var stockListEl = document.getElementById('stockList');
+      if (stockListEl) {
+        stockListEl.addEventListener('contextmenu', function(e) {
+          var item = e.target.closest('.stock-item');
+          if (!item) return;
+          e.preventDefault(); ctxTarget = item.dataset.symbol;
+          ctxMenuEl.style.display = 'block';
+          ctxMenuEl.style.left = Math.min(e.clientX, window.innerWidth - 150) + 'px';
+          ctxMenuEl.style.top = Math.min(e.clientY, window.innerHeight - 160) + 'px';
+          var isZixuan = zixuan.indexOf(ctxTarget) >= 0;
+          var addEl = ctxMenuEl.querySelector('[data-action="addZixuan"]');
+          var remEl = ctxMenuEl.querySelector('[data-action="removeZixuan"]');
+          if (addEl) addEl.style.display = isZixuan ? 'none' : '';
+          if (remEl) remEl.style.display = isZixuan ? '' : 'none';
+        });
+      }
+    }
+
+    // Pattern checkboxes
+    var patternList = document.getElementById('patternList');
+    if (patternList && typeof PatternDetector !== 'undefined') {
+      var patterns = PatternDetector.getPatternList();
+      patternList.innerHTML = patterns.map(function(p) {
+        return '<label class="config-opt" style="display:block;padding:1px 0;font-size:10px"><input type="checkbox" data-pattern="' + p.id + '" checked> ' + p.name + '</label>';
+      }).join('');
+      patternList.querySelectorAll('input').forEach(function(cb) {
+        cb.addEventListener('change', function() { PatternDetector.setPatternEnabled(cb.dataset.pattern, cb.checked); });
+      });
+    }
+
+    // Restore persisted state
+    try {
+      var tab = localStorage.getItem('kline_watchlist_tab');
+      if (tab && ['all', 'lanchou', 'keji', 'zixuan'].indexOf(tab) >= 0) {
+        wlTab = tab; $$('.wl-tab').forEach(function(t) { t.classList.toggle('active', t.dataset.group === wlTab); });
+      }
+      var srt = localStorage.getItem('kline_watchlist_sort');
+      if (srt) { wlSort = srt; var sEl = $('#wlSortSelect'); if (sEl) sEl.value = srt; }
+      var cols = localStorage.getItem('kline_watchlist_cols');
+      if (cols) { try { wlCols = JSON.parse(cols); } catch(e) {} }
+      var zx = localStorage.getItem('kline_zixuan');
+      if (zx) { try { zixuan = JSON.parse(zx); } catch(e) {} }
+      // Alert & order module persistence
+      if (typeof AlertManager !== 'undefined') AlertManager.load();
+      if (typeof OrderTypes !== 'undefined') OrderTypes.load();
+    } catch(e) {}
+  }
+  function saveZixuan() { try { localStorage.setItem('kline_zixuan', JSON.stringify(zixuan)); } catch(e) {} }
+
+  // ── Tick Loop: Integrate orders + alerts + patterns ──
+  var _origTick = tick;
+  tick = function() {
+    _origTick();
+    if (typeof OrderTypes !== 'undefined') {
+      var triggered = OrderTypes.check(sim.getPrice());
+      triggered.forEach(function(t) { showToast(t.type + '订单触发: @¥' + t.price.toFixed(2)); updateCapitalBar(); updateHistory(); updatePositions(); });
+    }
+    if (typeof AlertManager !== 'undefined' && saveCnt % 5 === 0) {
+      var cfg = Simulator.STOCKS[curSym];
+      var hitAlerts = AlertManager.check({ symbol: curSym, price: sim.getPrice(), name: cfg ? cfg.name : curSym });
+      hitAlerts.forEach(function(a) { showToast('🔔 ' + a.stockName + ' ' + a.description); });
+    }
+    if (typeof PatternDetector !== 'undefined' && saveCnt % 15 === 0) {
+      var candles = sim.getCandles();
+      if (candles.length > 3) {
+        PatternDetector.clearMarkers();
+        try {
+          PatternDetector.renderMarkers(PatternDetector.detect(candles), document.getElementById('mainChart'), function(price) {
+            var cs = ChartManager.getCandleSeries(); return cs ? cs.priceToCoordinate(price) : null;
+          });
+        } catch(e) {}
+      }
+    }
+  };
   return{
     start:start,play:play,pause:pause,step:step,reset:reset,quickSell:quickSell,
     activateDraw:activateDrawTool,
     clearDraws:clearDrawings,
+    toggleAlertPanel:toggleAlertPanel,
+    addAlert:addAlert,
+    removeAlert:function(id){if(typeof AlertManager!=='undefined'){AlertManager.remove(id);renderAlertList();}},
+    toggleAlert:function(id){if(typeof AlertManager!=='undefined'){AlertManager.toggle(id);renderAlertList();}},
+    rearmAlert:function(id){if(typeof AlertManager!=='undefined'){AlertManager.rearm(id);renderAlertList();}},
+    showEquityModal:showEquityModal,
+    showHelpOverlay:showHelpOverlay,
+    toggleOverlay:toggleOverlay,
+    togglePatternPanel:togglePatternPanel,
+    togglePattern:togglePattern,
+    toggleOverlayStock:toggleOverlayStock,
   };
 })();
 document.addEventListener('DOMContentLoaded',function(){App.start();});
