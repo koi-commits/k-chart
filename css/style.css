@@ -169,20 +169,14 @@
 }
 .load-watermark-cover {
   position: absolute; top: 0; left: 0;
-  width: 280px; height: 56px;
-  background: #080808;
+  width: 340px; height: 72px;
+  background: #060608;
   z-index: 5;
-  border-radius: 0 0 8px 0;
-}
-.load-watermark-cover::after {
-  content: ''; position: absolute; top: 0; right: 0;
-  width: 140px; height: 40px;
-  background: #080808;
-  border-radius: 0 0 0 8px;
+  border-radius: 0 0 10px 0;
 }
 .load-icon-overlay {
-  position: absolute; top: 4%; right: 14%;
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  position: absolute; top: 25%; right: 32%;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
   animation: loadIconBounce 0.6s ease-in-out infinite alternate;
   z-index: 10;
 }
