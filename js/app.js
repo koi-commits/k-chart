@@ -82,21 +82,53 @@ const App = (() => {
   }
 
   function startNewGame() {
-    // 自动保存到第一个空槽
     var saves = SaveManager.getAllSaves();
     var emptySlot = -1;
     for (var i = 0; i < 5; i++) { if (!saves[i]) { emptySlot = i; break; } }
-    if (emptySlot < 0) emptySlot = 0; // 覆盖第一个
+    if (emptySlot < 0) emptySlot = 0;
     var name = prompt('给存档取个名字：', '我的交易之旅');
+    if (name === null) return; // 用户取消
     SaveManager.saveSlot(emptySlot, name || '新存档');
-    showLoadScreen(function() { hideSplash(); });
+    // 新游戏不播放视频，直接普通加载
+    showPlainLoadScreen(function() { hideSplash(); });
   }
 
   function loadGame(slotIndex) {
+    // 读档播放视频
     showLoadScreen(function() {
       SaveManager.loadSlot(slotIndex);
       hideSplash();
     });
+  }
+
+  // 普通加载（无视频，新游戏用）
+  function showPlainLoadScreen(callback) {
+    var splash = $('#splashScreen'); if (splash) splash.style.display = 'none';
+    var load = $('#loadScreen'); if (!load) { if (callback) callback(); return; }
+    load.style.display = 'flex';
+    // 隐藏视频相关元素
+    var vc = document.querySelector('.load-video-container');
+    if (vc) vc.style.background = 'linear-gradient(180deg, #0a0a14 0%, #0d0d1a 100%)';
+    var video = document.getElementById('loadVideo'); if (video) video.style.display = 'none';
+    var audio = document.getElementById('loadAudio'); if (audio) { audio.pause(); audio.style.display = 'none'; }
+    var icon = document.querySelector('.load-icon-overlay'); if (icon) icon.style.display = 'none';
+    var skip = document.querySelector('.load-skip-hint'); if (skip) skip.style.display = 'none';
+    // 显示简洁加载界面
+    var fill = $('#loadProgressFill');
+    var text = $('#loadProgressText');
+    var msgs = ['正在创建新存档...', '初始化交易账户...', '加载市场数据...', '准备就绪...'];
+    var progress = 0;
+    var timer = setInterval(function() {
+      progress += 8 + Math.random() * 10;
+      if (progress >= 100) { progress = 100; clearInterval(timer);
+        if (fill) fill.style.width = '100%';
+        if (text) text.textContent = '✓ 准备完成';
+        setTimeout(function() { load.style.display = 'none'; if (callback) callback(); }, 500);
+      } else {
+        if (fill) fill.style.width = progress + '%';
+        if (text) text.textContent = msgs[Math.min(Math.floor(progress / 25), msgs.length - 1)];
+      }
+    }, 300);
   }
 
   var loadTimer = null, loadVideoEl = null, loadAudioEl = null;
