@@ -172,6 +172,7 @@
         <button class="panel-tab" data-tab="backtest">回测</button>
         <button class="panel-tab" data-tab="analytics">分析</button>
         <button class="panel-tab" data-tab="achievements">成就</button>
+        <button class="panel-tab" data-tab="quant">量化</button>
       </div>
 
       <!-- 盘口 -->
@@ -300,6 +301,32 @@
           <!-- AchievementEngine.renderGallery -->
         </div>
       </div>
+
+      <!-- 量化投资 -->
+      <div class="panel-page" id="pageQuant" style="flex-direction:column;overflow-y:auto">
+        <div class="quant-section">
+          <div class="quant-section-header"><span>🤖 自动交易</span><span class="quant-status" id="quantStatus">⏸ 已停止</span></div>
+          <div class="quant-section-body">
+            <div style="display:flex;gap:6px;padding:4px 0">
+              <button class="quant-btn" id="btnQuantStart" style="flex:1;background:var(--up-color);color:#fff">▶ 启动</button>
+              <button class="quant-btn" id="btnQuantStop" style="flex:1;background:var(--down-color);color:#fff">⏹ 停止</button>
+            </div>
+            <div style="font-size:10px;color:var(--text-muted);margin:4px 0">今日交易: <b id="quantDailyCount">0</b>/50</div>
+            <div class="quant-trade-log" id="quantTradeLog" style="max-height:120px;overflow-y:auto;font-size:10px"><div style="color:var(--text-muted)">等待启动...</div></div>
+          </div>
+        </div>
+        <div class="quant-section">
+          <div class="quant-section-header"><span>📉 风险评估</span><span style="font-size:10px;color:var(--text-muted)" id="riskUpdateTime"></span></div>
+          <div class="quant-section-body" id="riskMetricsBody"><div style="color:var(--text-muted);text-align:center;padding:12px">切换到量化面板自动计算</div></div>
+        </div>
+        <div class="quant-section">
+          <div class="quant-section-header"><span>📊 组合优化</span></div>
+          <div class="quant-section-body">
+            <button class="quant-btn" id="btnOptimize" style="width:100%;background:var(--accent);color:#fff;margin-bottom:6px">🔄 运行优化</button>
+            <div class="quant-allocation" id="quantAllocation" style="max-height:200px;overflow-y:auto"><div style="color:var(--text-muted);text-align:center;padding:12px">点击运行优化</div></div>
+          </div>
+        </div>
+      </div>
     </aside>
   </div>
 
@@ -341,6 +368,9 @@
   <script src="js/achievement-toast.js"></script>
   <script src="js/tutorial-content.js"></script>
   <script src="js/tutorial-ui.js"></script>
+  <script src="js/risk-metrics.js"></script>
+  <script src="js/quant-trading.js"></script>
+  <script src="js/portfolio-optimizer.js"></script>
   <script src="js/app.js"></script>
 
   <!-- Toast -->

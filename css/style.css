@@ -1718,6 +1718,97 @@ body.drawing-crosshair .chart-container canvas { cursor: crosshair !important; }
 }
 
 /* ============================================
+   Quantitative Investment Panel
+   ============================================ */
+.quant-section {
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.quant-section.collapsed .quant-section-body { display: none; }
+.quant-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-light);
+}
+.quant-section-header:hover { background: var(--bg-hover); }
+.quant-section-body {
+  padding: 8px 12px;
+}
+.quant-btn {
+  padding: 6px 10px;
+  border: none;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font-stack);
+  color: #fff;
+  transition: filter 0.15s;
+}
+.quant-btn:hover { filter: brightness(1.15); }
+.quant-status {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  padding: 2px 8px;
+  border-radius: 8px;
+}
+.quant-status.running { background: rgba(102,187,106,0.2); color: var(--down-color); }
+.quant-status.stopped { background: rgba(255,82,82,0.12); color: var(--up-color); }
+.quant-strategies { display: flex; flex-direction: column; gap: 2px; padding: 4px 0; }
+.quant-strat-item {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: var(--text-secondary); cursor: pointer;
+}
+.quant-strat-item input { accent-color: var(--accent); }
+.quant-trade-log { margin-top: 4px; }
+.quant-trade-log .qt-entry { padding: 2px 0; border-bottom: 1px solid var(--border-light); }
+.quant-trade-log .qt-entry.buy { color: var(--up-color); }
+.quant-trade-log .qt-entry.sell { color: var(--down-color); }
+
+.quant-tabs { display: flex; gap: 2px; margin-bottom: 6px; }
+.quant-opt-tab {
+  flex: 1; padding: 5px 4px; border: 1px solid var(--border);
+  border-radius: 4px; background: var(--bg-input); color: var(--text-secondary);
+  font-size: 10px; cursor: pointer; font-family: var(--font-stack); transition: all 0.15s;
+}
+.quant-opt-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.quant-allocation .qa-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 3px 0; font-size: 11px; border-bottom: 1px solid var(--border-light);
+}
+.qa-weight-bar {
+  width: 40px; height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden;
+}
+.qa-weight-fill { height: 100%; background: var(--accent); border-radius: 2px; }
+
+.risk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.risk-card {
+  background: var(--bg-input); border-radius: 4px; padding: 6px 8px; text-align: center;
+}
+.risk-card .risk-val { font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--text-primary); }
+.risk-card .risk-lbl { font-size: 9px; color: var(--text-muted); margin-top: 1px; }
+.risk-card.danger .risk-val { color: var(--up-color); }
+.risk-card.warn .risk-val { color: #ff9800; }
+.risk-card.safe .risk-val { color: var(--down-color); }
+
+.risk-score-gauge {
+  width: 100%; height: 6px; background: linear-gradient(90deg, #66bb6a, #ff9800, #ff5252);
+  border-radius: 3px; position: relative; margin: 6px 0;
+}
+.risk-score-gauge::after {
+  content: ''; position: absolute; top: -2px; width: 10px; height: 10px;
+  border-radius: 50%; background: #fff; border: 2px solid var(--text-primary);
+  left: var(--gauge-pos); transform: translateX(-50%); transition: left 0.5s;
+}
+
+/* ============================================
    Tutorial Overlay — Game-inspired UI
    Persona 5 / Hades / Darkest Dungeon fusion
    Peak-End Rule, Zeigarnik, Social Currency
@@ -2661,3 +2752,515 @@ body.drawing-crosshair .chart-container canvas { cursor: crosshair !important; }
   background: rgba(255,255,255,0.1);
   border-radius: 2px;
 }
+
+/* ═══════════════════════════════════════════
+   QUANT TRADING PANEL (#pageQuant)
+   ═══════════════════════════════════════════ */
+
+#pageQuant {
+  padding: 0;
+}
+
+.quant-section {
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.quant-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.quant-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+  background: var(--bg-tertiary);
+  transition: background 0.15s;
+}
+
+.quant-section-header:hover {
+  background: var(--bg-hover);
+}
+
+.quant-section.collapsed .quant-section-body {
+  display: none;
+}
+
+.quant-section-body {
+  padding: 6px 10px;
+}
+
+.quant-btn {
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-family: var(--font-stack);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.quant-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+}
+
+.quant-status {
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.quant-strategies {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 4px 0;
+}
+
+.quant-strat-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: 2px 0;
+}
+
+.quant-strat-item input[type="checkbox"] {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.quant-trade-log {
+  margin-top: 6px;
+  padding: 4px 6px;
+  background: var(--bg-chart);
+  border-radius: var(--radius);
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+/* Risk Metrics */
+.risk-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+  font-size: 11px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.risk-row:last-child {
+  border-bottom: none;
+}
+
+/* Optimization Tabs */
+.quant-tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 6px;
+  background: var(--bg-input);
+  border-radius: var(--radius);
+  padding: 2px;
+}
+
+.quant-opt-tab {
+  flex: 1;
+  padding: 4px 2px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-family: var(--font-stack);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.quant-opt-tab:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.quant-opt-tab.active {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* Allocation rows */
+.alloc-row {
+  display: flex;
+  align-items: center;
+  padding: 3px 0;
+  font-size: 11px;
+  gap: 4px;
+}
+
+.alloc-row:not(:last-child) {
+  border-bottom: 1px solid var(--border-light);
+}
+
+/* ============================================
+   Risk Metrics Dashboard — 风控仪表盘
+   ============================================ */
+
+/* ── Risk Score Card ── */
+.risk-score-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 10px 8px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.risk-score-circle {
+  position: relative;
+  width: 90px;
+  height: 90px;
+  margin-bottom: 6px;
+}
+.risk-score-ring {
+  width: 100%;
+  height: 100%;
+}
+.risk-score-ring circle:first-child {
+  opacity: 0.3;
+}
+.risk-score-ring circle:last-child {
+  transition: stroke-dasharray 0.6s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.4s;
+}
+.risk-score-value {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 28px;
+  font-weight: 900;
+  font-family: var(--font-mono);
+}
+.risk-score-label {
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+.risk-score-detail {
+  font-size: 9px;
+  color: var(--text-muted);
+  text-align: center;
+  font-family: var(--font-mono);
+  line-height: 1.4;
+}
+
+/* ── Risk Section ── */
+.risk-section {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-light);
+  flex-shrink: 0;
+}
+.risk-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ── Volatility Grid ── */
+.risk-vol-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+.risk-vol-item {
+  background: var(--bg-input);
+  border-radius: 4px;
+  padding: 6px 8px;
+  text-align: center;
+}
+.rv-label {
+  display: block;
+  font-size: 9px;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+.rv-value {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--accent);
+}
+
+/* ── VaR Grid ── */
+.risk-var-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.risk-var-card {
+  background: var(--bg-input);
+  border-radius: 4px;
+  padding: 6px 8px;
+  text-align: center;
+}
+.rvc-title {
+  font-size: 9px;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+.rvc-value {
+  font-size: 14px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--down-color);
+}
+.risk-cvar-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 8px;
+  background: rgba(255,82,82,0.08);
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.rvc-cvar {
+  font-size: 14px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--down-color);
+}
+
+/* ── Drawdown Meter ── */
+.risk-dd-bar {
+  position: relative;
+  height: 22px;
+  background: var(--bg-input);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+.risk-dd-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: var(--down-color);
+  border-radius: 4px;
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 0.5;
+}
+.risk-dd-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+.risk-dd-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+.risk-dd-grid > div {
+  background: var(--bg-input);
+  border-radius: 4px;
+  padding: 4px 8px;
+  text-align: center;
+}
+.rdd-label {
+  display: block;
+  font-size: 9px;
+  color: var(--text-muted);
+}
+.rdd-value {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+}
+
+/* ── Ratio Table ── */
+.risk-ratio-table {
+  font-size: 11px;
+}
+.rrt-row {
+  display: flex;
+  align-items: center;
+  padding: 5px 6px;
+  border-bottom: 1px solid var(--border-light);
+  gap: 8px;
+}
+.rrt-row:last-child {
+  border-bottom: none;
+}
+.rrt-name {
+  flex: 1;
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+.rrt-val {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--accent);
+  min-width: 40px;
+  text-align: right;
+}
+.rrt-interp {
+  font-size: 9px;
+  color: var(--text-muted);
+  min-width: 48px;
+  text-align: right;
+}
+
+/* ── Beta Row ── */
+.risk-beta-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 6px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  margin-bottom: 2px;
+}
+.risk-beta-row b {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.risk-beta-int {
+  font-size: 9px;
+  color: var(--text-muted);
+  padding: 0 6px;
+  margin-bottom: 8px;
+}
+
+/* ── Correlation Matrix Heatmap ── */
+.risk-corr-matrix {
+  overflow-x: auto;
+  padding: 2px 0;
+}
+.corr-heatmap-header {
+  display: flex;
+  align-items: center;
+}
+.corr-heatmap-row {
+  display: flex;
+  align-items: center;
+}
+.corr-cell {
+  min-width: 28px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  margin: 1px;
+  font-size: 8px;
+  font-family: var(--font-mono);
+}
+.corr-label {
+  min-width: 32px;
+  font-size: 8px;
+  color: var(--text-muted);
+}
+.corr-col-label {
+  font-size: 8px;
+  color: var(--text-muted);
+  transform: rotate(-45deg);
+  min-width: 28px;
+  white-space: nowrap;
+}
+.corr-row-label {
+  font-size: 8px;
+  color: var(--text-muted);
+  justify-content: flex-end;
+  padding-right: 4px;
+  min-width: 32px;
+}
+.corr-data {
+  font-weight: 600;
+  font-size: 7px;
+  min-width: 28px;
+  cursor: default;
+}
+
+/* ── Risk Decomposition ── */
+.risk-decomp-bar {
+  display: flex;
+  height: 20px;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 6px;
+  background: var(--bg-input);
+}
+.risk-decomp-sys {
+  background: linear-gradient(90deg, #42a5f5, #1e88e5);
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.risk-decomp-unsys {
+  background: linear-gradient(90deg, #ff9800, #f57c00);
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.risk-decomp-legend {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 4px;
+  margin-bottom: 4px;
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+.risk-decomp-legend b {
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+.rdl-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  margin-right: 3px;
+  vertical-align: middle;
+}
+.rdl-dot.sys { background: #42a5f5; }
+.rdl-dot.unsys { background: #ff9800; }
+.risk-decomp-detail {
+  font-size: 9px;
+  color: var(--text-muted);
+  padding: 0 4px;
+  font-family: var(--font-mono);
+  line-height: 1.4;
+}
+
+/* ── Risk Refresh Button ── */
+.risk-refresh-btn {
+  margin-top: 4px;
+}
+

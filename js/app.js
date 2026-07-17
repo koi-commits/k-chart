@@ -288,13 +288,14 @@ const App = (() => {
   // Fix the side toggle - currentSide should be set BEFORE calling updateEstimate
   function switchPanelTab(tab) {
     $$('.panel-tab').forEach(function(t){t.classList.toggle('active',t.dataset.tab===tab);});
-    var pages = {orderbook:'#pageOrderBook',trade:'#pageTrade',positions:'#pagePositions',backtest:'#pageBacktest',analytics:'#pageAnalytics',achievements:'#pageAchievements'};
+    var pages = {orderbook:'#pageOrderBook',trade:'#pageTrade',positions:'#pagePositions',backtest:'#pageBacktest',analytics:'#pageAnalytics',achievements:'#pageAchievements',quant:'#pageQuant'};
     Object.keys(pages).forEach(function(k){var e=$(pages[k]);if(e)e.classList.toggle('active',k===tab);});
     if (tab==='positions') updatePositions();
     if (tab==='trade') { val('#tradePrice',sim.getPrice().toFixed(2)); updateEstimate(); }
     if (tab==='backtest') initBacktestPanel();
     if (tab==='analytics') { if (typeof Analytics !== 'undefined') Analytics.refresh(); }
     if (tab==='achievements') {
+    if (tab==='quant') initQuantPanel();
       var rp = document.getElementById('rightPanel'); if (rp) rp.classList.add('wide');
       if (typeof AchievementToast !== 'undefined') AchievementToast.renderGallery(document.getElementById('achGallery'));
       if (typeof AchievementEngine !== 'undefined') {
@@ -1453,6 +1454,83 @@ const App = (() => {
     } catch(e) {}
   }
 
+  // ── 量化投资面板 ──
+  var quantInitialized = false;
+  function initQuantPanel() {
+    if (quantInitialized) return;
+    quantInitialized = true;
+    on($('#btnQuantStart'), 'click', function() {
+      if (typeof QuantTrading !== 'undefined') { QuantTrading.start(); updateQuantStatus(); showToast('自动交易已启动'); }
+    });
+    on($('#btnQuantStop'), 'click', function() {
+      if (typeof QuantTrading !== 'undefined') { QuantTrading.stop(); updateQuantStatus(); showToast('自动交易已停止'); }
+    });
+    on($('#btnOptimize'), 'click', function() {
+      if (typeof PortfolioOptimizer === 'undefined') { showToast('优化器未加载', 'error'); return; }
+      showToast('正在计算最优配置...');
+      setTimeout(function() {
+        var result = PortfolioOptimizer.optimize();
+        if (result.error) { showToast(result.error, 'error'); return; }
+        displayAllocation(result, 'maxSharpe');
+        displayRiskMetrics();
+        showToast('优化完成');
+      }, 150);
+    });
+    updateQuantStatus();
+  }
+
+  function updateQuantStatus() {
+    var el = $('#quantStatus'); if (!el) return;
+    if (typeof QuantTrading !== 'undefined' && QuantTrading.isRunning && QuantTrading.isRunning()) {
+      el.textContent = '🟢 运行中'; el.className = 'quant-status running';
+    } else { el.textContent = '⏸ 已停止'; el.className = 'quant-status stopped'; }
+  }
+
+  function displayAllocation(result, method) {
+    var alloc = result.allocations[method] || result.allocations.maxSharpe;
+    var c = $('#quantAllocation'); if (!c) return;
+    var s = result.stats[method];
+    var sh = s ? '<div style="display:flex;gap:12px;padding:4px 0;font-size:10px;color:var(--text-muted);margin-bottom:4px"><span>收益: ' + (s.expectedReturn*100).toFixed(1) + '%</span><span>波动: ' + (s.volatility*100).toFixed(1) + '%</span><span>夏普: ' + s.sharpeRatio.toFixed(2) + '</span></div>' : '';
+    c.innerHTML = sh + alloc.map(function(a) { return '<div class="qa-item"><span style="flex:1">' + a.name + '</span><span style="font-size:10px;color:var(--text-muted);margin-right:6px">' + a.weight + '%</span><div class="qa-weight-bar"><div class="qa-weight-fill" style="width:' + a.weight + '%"></div></div></div>'; }).join('');
+  }
+
+  function displayRiskMetrics() {
+    var c = $('#riskMetricsBody'); if (!c) return;
+    if (typeof RiskMetrics === 'undefined') { c.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:12px">风险模块未加载</div>'; return; }
+    var candles = sim.getCandles();
+    if (candles.length < 20) { c.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:12px">数据不足(需20根K线)</div>'; return; }
+    try {
+      var m = RiskMetrics.computeAll(curSym, candles);
+      if (!m) { c.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:12px">计算失败</div>'; return; }
+      var score = Math.min(100, Math.max(0, Math.round((m.annualVol || 0.3) * 100)));
+      var sc = score < 25 ? 'safe' : score < 50 ? 'warn' : 'danger';
+      c.innerHTML = '<div class="risk-score-gauge" style="--gauge-pos:' + score + '%"></div><div style="text-align:center;font-size:11px;margin-bottom:6px">风险评分: <b class="' + sc + '" style="font-size:14px">' + score + '</b>/100</div><div class="risk-grid">' +
+        '<div class="risk-card ' + ((m.annualVol||0) > 0.4 ? 'danger' : (m.annualVol||0) > 0.25 ? 'warn' : 'safe') + '"><div class="risk-val">' + ((m.annualVol||0)*100).toFixed(1) + '%</div><div class="risk-lbl">年化波动率</div></div>' +
+        '<div class="risk-card ' + ((m.sharpeRatio||0) > 1 ? 'safe' : 'warn') + '"><div class="risk-val">' + (m.sharpeRatio||0).toFixed(2) + '</div><div class="risk-lbl">夏普比率</div></div>' +
+        '<div class="risk-card danger"><div class="risk-val">' + ((m.var95||0)*100).toFixed(2) + '%</div><div class="risk-lbl">95% VaR</div></div>' +
+        '<div class="risk-card ' + ((m.maxDrawdown||0) < 0.1 ? 'safe' : 'danger') + '"><div class="risk-val">' + ((m.maxDrawdown||0)*100).toFixed(1) + '%</div><div class="risk-lbl">最大回撤</div></div>' +
+        '<div class="risk-card"><div class="risk-val">' + (m.sortinoRatio||0).toFixed(2) + '</div><div class="risk-lbl">索提诺比率</div></div>' +
+        '<div class="risk-card"><div class="risk-val">' + (m.beta||0).toFixed(2) + '</div><div class="risk-lbl">Beta系数</div></div></div>';
+      var te = $('#riskUpdateTime'); if (te) te.textContent = new Date().toLocaleTimeString();
+    } catch(e) { c.innerHTML = '<div style="color:var(--up-color);font-size:11px">计算错误</div>'; }
+  }
+
+  // ── Quant tick hook ──
+  var _qtTick = tick;
+  tick = function() {
+    _qtTick();
+    if (typeof QuantTrading !== 'undefined' && QuantTrading.isRunning && QuantTrading.isRunning()) {
+      try {
+        QuantTrading.tick({ symbol: curSym, candles: sim.getCandles(), price: sim.getPrice() });
+        var dc = $('#quantDailyCount'); if (dc && QuantTrading.getDailyTradeCount) dc.textContent = QuantTrading.getDailyTradeCount();
+        var log = QuantTrading.getTradeLog ? QuantTrading.getTradeLog() : [];
+        if (log.length > 0) {
+          var le = $('#quantTradeLog');
+          if (le) le.innerHTML = log.slice(-10).reverse().map(function(t) { return '<div class="qt-entry ' + t.side + '">' + (t.side==='buy'?'📈买':'📉卖') + ' ' + t.symbol + ' @' + t.price.toFixed(2) + ' ×' + t.shares + ' <span style="font-size:9px">' + (t.strategy||'') + '</span></div>'; }).join('') || '<div style="color:var(--text-muted)">等待信号...</div>';
+        }
+      } catch(e) {}
+    }
+  };
   return{
     start:start,play:play,pause:pause,step:step,reset:reset,quickSell:quickSell,
     activateDraw:activateDrawTool,
