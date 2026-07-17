@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="K线模拟器 — 实时K线图生成与训练工具">
+  <title>K线模拟器</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- 顶部工具栏 -->
+  <header class="toolbar">
+    <div class="toolbar-left">
+      <span class="app-title">📈 K线模拟器</span>
+        <span class="sentiment-badge" id="sentimentBadge" title="市场情绪指数">--</span>
+    </div>
+    <div class="toolbar-center">
+      <div class="period-selector" id="periodSelector">
+        <button data-period="1m">1分</button>
+        <button data-period="5m">5分</button>
+        <button data-period="15m" class="active">15分</button>
+        <button data-period="1h">1时</button>
+        <button data-period="1d">日线</button>
+        <button data-period="1w">周线</button>
+      </div>
+    </div>
+    <div class="toolbar-right">
+      <div class="draw-tools" id="drawTools">
+        <button class="icon-btn draw-btn" data-tool="trend" title="趋势线 (T)" onclick="App.activateDraw('trend')">📐</button>
+        <button class="icon-btn draw-btn" data-tool="horizontal" title="水平线 (H)" onclick="App.activateDraw('horizontal')">➖</button>
+        <button class="icon-btn" id="btnClearDraw" title="清除画线" onclick="App.clearDraws()">🗑</button>
+      </div>
+      <button class="icon-btn" id="themeToggle" title="切换主题">🌙</button>
+    </div>
+  </header>
+
+  <!-- 主内容区 -->
+  <div class="main-content">
+
+    <!-- 左侧面板：自选股列表 -->
+    <aside class="left-panel" id="leftPanel">
+      <div class="panel-header">
+        <span>自选股</span>
+      </div>
+      <div class="stock-list" id="stockList">
+        <!-- JS 动态生成 -->
+      </div>
+      <div class="stock-actions">
+        <button class="stock-add-btn" id="btnAddStock" title="添加新股">+ 添加股票</button>
+        <button class="stock-add-btn" id="btnEditStock" title="编辑当前股票" style="font-size:10px">✎ 编辑</button>
+      </div>
+    </aside>
+
+    <!-- 中间：图表区 -->
+    <main class="chart-area">
+      <!-- 价格信息条 -->
+      <div class="price-bar">
+        <div class="price-info">
+          <span class="stock-title" id="stockTitle">模拟A · 000001</span>
+          <span class="current-price up" id="currentPrice">--</span>
+          <span class="price-change up" id="priceChange">--</span>
+        </div>
+        <div class="ohlc-info">
+          <span>开 <b id="infoOpen">--</b></span>
+          <span>高 <b id="infoHigh">--</b></span>
+          <span>低 <b id="infoLow">--</b></span>
+          <span>收 <b id="infoClose">--</b></span>
+          <span>量 <b id="infoVol">--</b></span>
+        </div>
+      </div>
+
+      <!-- K线主图 -->
+      <div class="chart-container" id="mainChart">
+        <svg id="drawSvg" style="position:absolute;top:0;left:0;width:100%;height:100%;z-index:3;pointer-events:none"></svg>
+      </div>
+
+      <!-- 副图：成交量 -->
+      <div class="chart-container chart-sub" id="volumeChart"></div>
+
+      <!-- 副图：MACD -->
+      <div class="chart-container chart-sub" id="macdChart"></div>
+
+      <!-- 副图：RSI / KDJ -->
+      <div class="chart-container chart-sub" id="rsiChart">
+        <button class="indicator-switch" id="indicatorSwitch" title="点击切换 RSI / KDJ">RSI ▼</button>
+      </div>
+
+      <!-- 底部拖拽手柄 -->
+      <div class="chart-resize-handle" id="resizeHandle"></div>
+    </main>
+
+    <!-- 右侧面板：盘口 + 交易 -->
+    <aside class="right-panel" id="rightPanel">
+
+      <!-- 资金概览 -->
+      <div class="capital-bar" id="capitalBar">
+        <div class="capital-row">
+          <span class="capital-label">总资产</span>
+          <span class="capital-value" id="capTotal">¥100,000</span>
+        </div>
+        <div class="capital-row">
+          <span class="capital-label">可用</span>
+          <span class="capital-value" id="capCash">¥100,000</span>
+        </div>
+        <div class="capital-row">
+          <span class="capital-label">市值 / 盈亏</span>
+          <span class="capital-value" id="capPnL">¥0</span>
+        </div>
+      </div>
+
+      <!-- Tab 切换 -->
+      <div class="panel-tabs" id="panelTabs">
+        <button class="panel-tab active" data-tab="orderbook">盘口</button>
+        <button class="panel-tab" data-tab="trade">交易</button>
+        <button class="panel-tab" data-tab="positions">持仓</button>
+      </div>
+
+      <!-- 盘口 -->
+      <div class="panel-page active" id="pageOrderBook">
+        <div class="order-book" id="orderBook"></div>
+      </div>
+
+      <!-- 交易下单 -->
+      <div class="panel-page" id="pageTrade">
+        <div class="trade-form">
+          <!-- 买卖方向 -->
+          <div class="trade-side-tabs">
+            <button class="trade-side active buy" data-side="buy">买入</button>
+            <button class="trade-side sell" data-side="sell">卖出</button>
+          </div>
+
+          <!-- 价格 -->
+          <div class="trade-field">
+            <label>价格</label>
+            <input type="number" id="tradePrice" step="0.01" placeholder="当前市价">
+          </div>
+
+          <!-- 数量 -->
+          <div class="trade-field">
+            <label>数量（股）</label>
+            <input type="number" id="tradeShares" step="100" min="100" value="100" placeholder="100股起">
+          </div>
+
+          <!-- 快捷仓位 -->
+          <div class="trade-quick-sizes">
+            <button class="size-btn" data-ratio="0.25">1/4仓</button>
+            <button class="size-btn" data-ratio="0.5">半仓</button>
+            <button class="size-btn" data-ratio="0.75">3/4仓</button>
+            <button class="size-btn" data-ratio="1.0">全仓</button>
+          </div>
+
+          <!-- 止盈止损 -->
+          <div class="trade-sl-tp">
+            <div class="trade-field sl-field">
+              <label>止损价 <span class="sl-tp-hint">(可选)</span></label>
+              <input type="number" id="tradeSL" step="0.01" placeholder="触发自动卖出">
+            </div>
+            <div class="trade-field tp-field">
+              <label>止盈价 <span class="sl-tp-hint">(可选)</span></label>
+              <input type="number" id="tradeTP" step="0.01" placeholder="触发自动卖出">
+            </div>
+          </div>
+
+          <!-- 预估信息 -->
+          <div class="trade-estimate" id="tradeEstimate">
+            <div class="est-row"><span>预估金额</span><b id="estValue">¥0</b></div>
+            <div class="est-row"><span>手续费</span><b id="estFee">¥0</b></div>
+            <div class="est-row"><span>市场冲击</span><b id="estImpact">0%</b></div>
+          </div>
+
+          <!-- 确认按钮 -->
+          <button class="trade-submit buy-btn" id="btnSubmitTrade">买入</button>
+        </div>
+
+        <!-- 交易记录 -->
+        <div class="trade-history" id="tradeHistory">
+          <div class="history-title">最近交易</div>
+          <div class="history-list" id="historyList">
+            <div class="history-empty">暂无交易记录</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 持仓 -->
+      <div class="panel-page" id="pagePositions">
+        <div class="position-list" id="positionList">
+          <div class="history-empty">暂无持仓</div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- 底部控制栏 -->
+  <footer class="control-bar">
+    <div class="control-left">
+      <button class="ctrl-btn" id="btnPlay" title="播放/暂停">▶</button>
+      <button class="ctrl-btn" id="btnStep" title="单步前进">⏭</button>
+      <button class="ctrl-btn" id="btnReset" title="重置">↺</button>
+    </div>
+    <div class="control-center">
+      <button class="ctrl-btn" id="btnReplay" title="历史回放模式">⏮</button>
+      <span class="speed-label">速度</span>
+      <input type="range" class="speed-slider" id="speedSlider" min="1" max="10" value="5" title="模拟速度">
+      <span class="speed-value" id="speedValue">×5</span>
+      <span class="replay-info" id="replayInfo" style="display:none"></span>
+    </div>
+    <div class="control-right">
+      <canvas class="equity-sparkline" id="equityCanvas" width="120" height="36"></canvas>
+      <span class="candle-count" id="candleCount">K线: 0</span>
+    </div>
+  </footer>
+
+  <script src="lib/lightweight-charts.js"></script>
+  <script src="js/simulator.js"></script>
+  <script src="js/trader.js"></script>
+  <script src="js/chart.js"></script>
+  <script src="js/market-sentiment.js"></script>
+  <script src="js/app.js"></script>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <!-- 股票编辑弹窗 -->
+  <div class="modal-overlay" id="stockModal" style="display:none">
+    <div class="modal-box">
+      <div class="modal-title" id="modalTitle">添加股票</div>
+      <div class="modal-body">
+        <div class="trade-field">
+          <label>股票代码</label>
+          <input type="text" id="editSymbol" maxlength="6" placeholder="000006">
+        </div>
+        <div class="trade-field">
+          <label>股票名称</label>
+          <input type="text" id="editName" placeholder="模拟F">
+        </div>
+        <div class="trade-field">
+          <label>初始价格</label>
+          <input type="number" id="editPrice" step="0.01" placeholder="10.00">
+        </div>
+        <div class="trade-field">
+          <label>板块</label>
+          <select id="editSector" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-input);color:var(--text-primary);font-size:13px;font-family:var(--font-stack);outline:none">
+            <option value="银行">银行</option><option value="电力">电力</option><option value="基建">基建</option>
+            <option value="石油">石油</option><option value="家电">家电</option><option value="保险">保险</option>
+            <option value="白酒">白酒</option><option value="医药">医药</option><option value="消费">消费</option>
+            <option value="新能源">新能源</option><option value="券商">券商</option><option value="军工">军工</option>
+            <option value="半导体">半导体</option><option value="AI科技">AI科技</option>
+            <option value="有色">有色</option><option value="通信">通信</option>
+            <option value="地产">地产</option><option value="汽车">汽车</option>
+          </select>
+        </div>
+        <div class="trade-field">
+          <label>年化波动率</label>
+          <input type="number" id="editVolatility" step="0.001" min="0.10" max="0.80" value="0.30">
+        </div>
+        <div class="trade-field">
+          <label>年化趋势 (正数看涨，负数看跌)</label>
+          <input type="number" id="editTrend" step="0.01" min="-0.50" max="0.80" value="0.10">
+        </div>
+        <div class="trade-field">
+          <label>涨跌停幅度</label>
+          <select id="editLimit" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-input);color:var(--text-primary);font-size:13px;font-family:var(--font-stack);outline:none">
+            <option value="0.10">±10% (主板)</option>
+            <option value="0.20">±20% (创业板/科创板)</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="modal-btn cancel" id="btnModalCancel">取消</button>
+        <button class="modal-btn save" id="btnModalSave">保存</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

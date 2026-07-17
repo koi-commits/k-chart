@@ -1,0 +1,41 @@
+{
+  "name": "kline-simulator",
+  "version": "1.0.0",
+  "description": "K线模拟器 — 基于 Electron 的实时K线图表模拟工具",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win portable"
+  },
+  "build": {
+    "appId": "com.koi.kline-simulator",
+    "productName": "K线模拟器",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "index.html",
+      "css/**/*",
+      "js/**/*",
+      "icons/**/*",
+      "lib/**/*",
+      "node_modules/**/*"
+    ],
+    "win": {
+      "target": "portable",
+      "icon": "icons/icon-512.png"
+    },
+    "portable": {
+      "artifactName": "K线模拟器.exe"
+    }
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "dependencies": {
+    "lightweight-charts": "^4.2.0"
+  }
+}
