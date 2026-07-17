@@ -5,46 +5,14 @@
 
 const Simulator = (() => {
 
-  // A股各板块真实参数（基于2025年市场数据校准）
+  // A股各板块代表（基于2025年真实市场数据校准）
   // annualVol: 年化波动率, limitPct: 涨跌停幅度, trend: 年化趋势
-  // 数据来源: 东方财富Choice、申万行业指数、华源/国泰海通研报
   const STOCKS = {
-    // ═══ 低波动 · 防御性板块 ═══
-    '601398': { name: '工商银行',   basePrice: 5.80,  annualVol: 0.18, trend: 0.12,  limitPct: 0.10, sector: '银行' },
-    '600036': { name: '招商银行',   basePrice: 38.50, annualVol: 0.25, trend: 0.08,  limitPct: 0.10, sector: '银行' },
-    '600900': { name: '长江电力',   basePrice: 28.20, annualVol: 0.18, trend: 0.02,  limitPct: 0.10, sector: '电力' },
-    '601668': { name: '中国建筑',   basePrice: 5.50,  annualVol: 0.26, trend: 0.05,  limitPct: 0.10, sector: '基建' },
-    '601857': { name: '中国石油',   basePrice: 8.90,  annualVol: 0.30, trend: 0.20,  limitPct: 0.10, sector: '石油' },
-    '000333': { name: '美的集团',   basePrice: 68.00, annualVol: 0.28, trend: 0.10,  limitPct: 0.10, sector: '家电' },
-
-    // ═══ 中等波动 · 核心资产 ═══
-    '601318': { name: '中国平安',   basePrice: 48.00, annualVol: 0.33, trend: 0.10,  limitPct: 0.10, sector: '保险' },
+    '000001': { name: '平安银行',   basePrice: 12.50, annualVol: 0.19, trend: 0.08,  limitPct: 0.10, sector: '银行' },
     '600519': { name: '贵州茅台',   basePrice: 1680.00,annualVol: 0.28, trend: -0.12, limitPct: 0.10, sector: '白酒' },
-    '000858': { name: '五粮液',     basePrice: 148.00,annualVol: 0.34, trend: -0.15, limitPct: 0.10, sector: '白酒' },
-    '600276': { name: '恒瑞医药',   basePrice: 42.00, annualVol: 0.36, trend: 0.08,  limitPct: 0.10, sector: '医药' },
-    '600887': { name: '伊利股份',   basePrice: 28.00, annualVol: 0.27, trend: -0.05, limitPct: 0.10, sector: '消费' },
-    '603288': { name: '海天味业',   basePrice: 48.00, annualVol: 0.35, trend: -0.08, limitPct: 0.10, sector: '消费' },
-
-    // ═══ 高波动 · 成长进攻 ═══
     '300750': { name: '宁德时代',   basePrice: 210.00,annualVol: 0.45, trend: 0.30,  limitPct: 0.20, sector: '新能源' },
-    '002594': { name: '比亚迪',     basePrice: 280.00,annualVol: 0.42, trend: 0.25,  limitPct: 0.10, sector: '新能源' },
-    '601012': { name: '隆基绿能',   basePrice: 17.50, annualVol: 0.55, trend: 0.15,  limitPct: 0.10, sector: '新能源' },
-    '600030': { name: '中信证券',   basePrice: 24.00, annualVol: 0.35, trend: 0.28,  limitPct: 0.10, sector: '券商' },
-    '300059': { name: '东方财富',   basePrice: 18.00, annualVol: 0.55, trend: 0.35,  limitPct: 0.20, sector: '券商' },
-    '600893': { name: '航发动力',   basePrice: 38.00, annualVol: 0.40, trend: 0.30,  limitPct: 0.10, sector: '军工' },
-    '600760': { name: '中航沈飞',   basePrice: 52.00, annualVol: 0.42, trend: 0.28,  limitPct: 0.10, sector: '军工' },
-
-    // ═══ 极高波动 · 热点题材 ═══
     '688981': { name: '中芯国际',   basePrice: 52.00, annualVol: 0.58, trend: 0.40,  limitPct: 0.20, sector: '半导体' },
-    '002371': { name: '北方华创',   basePrice: 320.00,annualVol: 0.55, trend: 0.45,  limitPct: 0.10, sector: '半导体' },
     '002230': { name: '科大讯飞',   basePrice: 45.00, annualVol: 0.52, trend: 0.35,  limitPct: 0.10, sector: 'AI科技' },
-    '601899': { name: '紫金矿业',   basePrice: 18.50, annualVol: 0.48, trend: 0.55,  limitPct: 0.10, sector: '有色' },
-    '000063': { name: '中兴通讯',   basePrice: 32.00, annualVol: 0.48, trend: 0.40,  limitPct: 0.10, sector: '通信' },
-
-    // ═══ 特殊风险 ═══
-    '000002': { name: '万科A',      basePrice: 8.50,  annualVol: 0.58, trend: -0.35, limitPct: 0.10, sector: '地产' },
-    '603259': { name: '药明康德',   basePrice: 55.00, annualVol: 0.55, trend: 0.10,  limitPct: 0.10, sector: '医药' },
-    '601127': { name: '赛力斯',     basePrice: 85.00, annualVol: 0.65, trend: 0.20,  limitPct: 0.10, sector: '汽车' },
   };
 
   // 兼容旧配置：将旧的 volatility 字段转换为 annualVol
