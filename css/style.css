@@ -205,6 +205,14 @@
   font-size: 11px; color: #999; margin-top: 8px;
   font-family: var(--font-mono);
 }
+.load-skip-hint {
+  font-size: 10px; color: #555; margin-top: 16px;
+  animation: skipPulse 2s ease-in-out infinite;
+}
+@keyframes skipPulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
 
 /* ---------- Global Reset ---------- */
 *, *::before, *::after {

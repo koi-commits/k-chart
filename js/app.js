@@ -30,37 +30,34 @@ const App = (() => {
   function htm(s,v){var e=$(s);if(e)e.innerHTML=v;}
   function val(s,v){var e=$(s);if(e&&v!==undefined)e.value=v;return e?e.value:'';}
 
-  // ── Init ──
+  // ── 启动画面 ──
+  var splashReady = false;
   function initSplash() {
+    if (splashReady) return; // 防止递归
     renderSaveSlots();
-    on($('#btnNewGame'), 'click', function() { startNewGame(); });
+    splashReady = true;
+  }
 
-    // 点击存档槽 → 加载
+  function bindSplashEvents() {
+    on($('#btnNewGame'), 'click', function() { startNewGame(); });
     $$('.save-slot:not(.empty)').forEach(function(slot) {
       slot.addEventListener('click', function(e) {
         if (e.target.closest('.slot-delete')) return;
-        var idx = parseInt(slot.dataset.slot);
-        loadGame(idx);
+        loadGame(parseInt(slot.dataset.slot));
       });
     });
-
-    // 删除按钮
     $$('.slot-delete').forEach(function(btn) {
       btn.addEventListener('click', function(e) {
         e.stopPropagation();
         var idx = parseInt(btn.dataset.slot);
-        if (confirm('确定删除此存档？')) {
-          SaveManager.deleteSlot(idx);
-          renderSaveSlots();
-        }
+        if (confirm('确定删除此存档？')) { SaveManager.deleteSlot(idx); splashReady = false; initSplash(); }
       });
     });
   }
 
   function renderSaveSlots() {
     var saves = (typeof SaveManager !== 'undefined') ? SaveManager.getAllSaves() : [];
-    var container = $('#splashSlots');
-    if (!container) return;
+    var container = $('#splashSlots'); if (!container) return;
     var html = '';
     for (var i = 0; i < 5; i++) {
       var save = saves[i];
@@ -68,9 +65,9 @@ const App = (() => {
         var meta = SaveManager.formatSaveMeta(save);
         html += '<div class="save-slot" data-slot="' + i + '">' +
           '<div class="slot-num">' + (i + 1) + '</div>' +
-          '<div class="slot-info"><div class="slot-name">' + (meta.name || '存档 ' + (i+1)) + '</div>' +
+          '<div class="slot-info"><div class="slot-name">' + (meta.name || '存档'+(i+1)) + '</div>' +
           '<div class="slot-meta"><span>📅 ' + meta.date + '</span><span>📊 ' + meta.trades + '笔</span><span>🏆 ' + meta.achievements + '</span></div></div>' +
-          '<div class="slot-assets ' + (meta.pnlColor || '') + '">' + meta.assets + '</div>' +
+          '<div class="slot-assets ' + (meta.pnlColor||'') + '">' + meta.assets + '</div>' +
           '<button class="slot-delete" data-slot="' + i + '">✕</button></div>';
       } else {
         html += '<div class="save-slot empty" data-slot="' + i + '">' +
@@ -80,8 +77,8 @@ const App = (() => {
       }
     }
     container.innerHTML = html;
-    // Re-bind events after re-render
-    initSplash();
+    bindSplashEvents();
+    splashReady = true;
   }
 
   function startNewGame() {
@@ -102,34 +99,91 @@ const App = (() => {
     });
   }
 
+  var loadTimer = null, loadVideoEl = null, loadAudioEl = null;
   function showLoadScreen(callback) {
     var splash = $('#splashScreen'); if (splash) splash.style.display = 'none';
-    var load = $('#loadScreen'); if (load) {
-      load.style.display = 'flex';
-      var video = document.getElementById('loadVideo');
-      var audio = document.getElementById('loadAudio');
-      if (video) { video.currentTime = 0; video.play().catch(function(){}); }
-      if (audio) { audio.currentTime = 0; audio.play().catch(function(){}); }
+    var load = $('#loadScreen'); if (!load) { if (callback) callback(); return; }
+    load.style.display = 'flex';
+
+    loadVideoEl = document.getElementById('loadVideo');
+    loadAudioEl = document.getElementById('loadAudio');
+
+    // 获取视频时长作为加载总时长
+    var duration = 8; // 默认8秒
+    if (loadVideoEl) {
+      loadVideoEl.currentTime = 0;
+      loadVideoEl.play().catch(function(){});
+      // 尝试获取真实时长
+      if (loadVideoEl.duration && isFinite(loadVideoEl.duration)) {
+        duration = loadVideoEl.duration;
+      } else {
+        loadVideoEl.addEventListener('loadedmetadata', function() {
+          if (isFinite(loadVideoEl.duration)) duration = loadVideoEl.duration;
+        }, {once: true});
+      }
     }
-    // 模拟加载进度
-    var progress = 0;
+    if (loadAudioEl) { loadAudioEl.currentTime = 0; loadAudioEl.play().catch(function(){}); }
+
     var fill = $('#loadProgressFill');
     var text = $('#loadProgressText');
+    var startTime = Date.now();
+    var skipped = false;
     var msgs = ['正在读取存档...', '加载K线数据...', '初始化交易引擎...', '同步市场情绪...', '即将进入...'];
-    var interval = setInterval(function() {
-      progress += 7 + Math.random() * 8;
-      if (progress >= 100) { progress = 100; clearInterval(interval);
+
+    // Skip button handler
+    var skipHandler = function() {
+      if (skipped) return;
+      skipped = true;
+      if (loadTimer) clearInterval(loadTimer);
+      if (loadVideoEl) { loadVideoEl.pause(); loadVideoEl.style.display = 'none'; }
+      if (loadAudioEl) { loadAudioEl.pause(); }
+      // 切换到普通加载界面
+      var vc = document.querySelector('.load-video-container');
+      if (vc) vc.style.background = 'linear-gradient(180deg, #0a0a14 0%, #0d0d1a 100%)';
+      var icon = document.querySelector('.load-icon-overlay'); if (icon) icon.style.display = 'none';
+      // 加速进度条
+      simpleLoadProgress(fill, text, msgs, callback, 250, startTime);
+    };
+
+    // 绑定跳过：点击视频区域或按任意键
+    if (load) load.addEventListener('click', skipHandler, {once: true});
+    document.addEventListener('keydown', skipHandler, {once: true});
+
+    // 正常加载（根据视频时长）
+    loadTimer = setInterval(function() {
+      var elapsed = (Date.now() - startTime) / 1000;
+      var pct = Math.min(100, (elapsed / duration) * 100);
+      if (fill) fill.style.width = pct + '%';
+      if (text) text.textContent = msgs[Math.min(Math.floor(pct / 25), msgs.length - 1)];
+      if (elapsed >= duration) {
+        clearInterval(loadTimer);
         if (fill) fill.style.width = '100%';
         if (text) text.textContent = '✓ 加载完成';
+        if (loadVideoEl) loadVideoEl.pause();
+        if (loadAudioEl) loadAudioEl.pause();
         setTimeout(function() {
-          if (load) load.style.display = 'none';
+          load.style.display = 'none';
           if (callback) callback();
-        }, 600);
-      } else {
-        if (fill) fill.style.width = progress + '%';
-        if (text) text.textContent = msgs[Math.min(Math.floor(progress / 25), msgs.length - 1)];
+        }, 400);
       }
-    }, 400);
+    }, 250);
+  }
+
+  function simpleLoadProgress(fill, text, msgs, callback, interval, startTime) {
+    var simDuration = 4; // 跳过时4秒快速加载
+    loadTimer = setInterval(function() {
+      var elapsed = (Date.now() - startTime) / 1000;
+      var pct = Math.min(100, (elapsed / simDuration) * 100);
+      if (fill) fill.style.width = pct + '%';
+      if (text) text.textContent = msgs[Math.min(Math.floor(pct / 25), msgs.length - 1)];
+      if (elapsed >= simDuration) {
+        clearInterval(loadTimer);
+        if (fill) fill.style.width = '100%';
+        if (text) text.textContent = '✓ 加载完成';
+        var load = $('#loadScreen'); if (load) load.style.display = 'none';
+        if (callback) callback();
+      }
+    }, interval);
   }
 
   function hideSplash() {
