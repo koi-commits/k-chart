@@ -219,7 +219,7 @@ const AchievementToast = (() => {
     });
 
     var tc = TIERS;
-    var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:8px">';
+    var html = '<div style="display:flex;flex-direction:column;gap:6px;padding:8px">';
     all.forEach(function(ach) {
       var isUnlocked = !!unlockedIds[ach.id];
       var t = tc[ach.tier] || tc.bronze;

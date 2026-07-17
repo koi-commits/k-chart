@@ -295,12 +295,15 @@ const App = (() => {
     if (tab==='backtest') initBacktestPanel();
     if (tab==='analytics') { if (typeof Analytics !== 'undefined') Analytics.refresh(); }
     if (tab==='achievements') {
+      var rp = document.getElementById('rightPanel'); if (rp) rp.classList.add('wide');
       if (typeof AchievementToast !== 'undefined') AchievementToast.renderGallery(document.getElementById('achGallery'));
       if (typeof AchievementEngine !== 'undefined') {
         var u = AchievementEngine.getUnlockCount(), t = AchievementEngine.getTotalCount();
         var cnt = document.getElementById('achCount'); if (cnt) cnt.textContent = u + '/' + t;
         var fill = document.getElementById('achProgressFill'); if (fill) fill.style.width = Math.round(u/t*100) + '%';
       }
+    } else {
+      var rp2 = document.getElementById('rightPanel'); if (rp2) rp2.classList.remove('wide');
     }
   }
 
