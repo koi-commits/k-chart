@@ -295,7 +295,6 @@ const App = (() => {
     if (tab==='backtest') initBacktestPanel();
     if (tab==='analytics') { if (typeof Analytics !== 'undefined') Analytics.refresh(); }
     if (tab==='achievements') {
-    if (tab==='quant') initQuantPanel();
       var rp = document.getElementById('rightPanel'); if (rp) rp.classList.add('wide');
       if (typeof AchievementToast !== 'undefined') AchievementToast.renderGallery(document.getElementById('achGallery'));
       if (typeof AchievementEngine !== 'undefined') {
@@ -306,6 +305,7 @@ const App = (() => {
     } else {
       var rp2 = document.getElementById('rightPanel'); if (rp2) rp2.classList.remove('wide');
     }
+    if (tab==='quant') initQuantPanel();
   }
 
   function updateTradeBtn() {
@@ -1477,6 +1477,8 @@ const App = (() => {
       }, 150);
     });
     updateQuantStatus();
+    // Auto-compute risk on tab open
+    setTimeout(function() { displayRiskMetrics(); }, 200);
   }
 
   function updateQuantStatus() {
@@ -1522,7 +1524,7 @@ const App = (() => {
     if (typeof QuantTrading !== 'undefined' && QuantTrading.isRunning && QuantTrading.isRunning()) {
       try {
         QuantTrading.tick({ symbol: curSym, candles: sim.getCandles(), price: sim.getPrice() });
-        var dc = $('#quantDailyCount'); if (dc && QuantTrading.getDailyTradeCount) dc.textContent = QuantTrading.getDailyTradeCount();
+        var dc = $('#quantDailyCount'); if (dc && QuantTrading.getTradeLog) dc.textContent = QuantTrading.getTradeLog().length;
         var log = QuantTrading.getTradeLog ? QuantTrading.getTradeLog() : [];
         if (log.length > 0) {
           var le = $('#quantTradeLog');
