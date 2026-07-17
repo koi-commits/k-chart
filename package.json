@@ -25,7 +25,8 @@
     ],
     "win": {
       "target": "portable",
-      "icon": "icons/icon-512.png"
+      "icon": "icons/icon-256.png",
+      "signAndEditExecutable": false
     },
     "portable": {
       "artifactName": "K线模拟器.exe"
