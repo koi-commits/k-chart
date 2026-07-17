@@ -40,26 +40,15 @@
   </div>
 
   <!-- ═══════════════════════════════════════════════ -->
-  <!-- 加载画面：赌神视频 -->
+  <!-- 加载画面 -->
   <!-- ═══════════════════════════════════════════════ -->
   <div class="load-overlay" id="loadScreen" style="display:none">
-    <div class="load-video-container">
-      <!-- B站嵌入式播放器(自带音频, 无需ffmpeg合并) -->
-      <iframe id="loadVideo" allow="autoplay" style="width:100%;height:100%;position:absolute;top:0;left:0;border:none"
-        src=""></iframe>
-      <iframe id="loadVideo2" allow="autoplay" style="width:100%;height:100%;position:absolute;top:0;left:0;border:none;opacity:0"
-        src=""></iframe>
-      <!-- 水印遮盖 -->
-      <div class="load-watermark-cover"></div>
-      <!-- App图标实时替换法国赌神头像(墨镜/黑西装/无帽) -->
-      <div class="load-icon-overlay">
-        <img src="icons/icon-256.png" alt="K线模拟器" class="load-app-icon" />
-        <p class="load-meme-text">给我擦皮鞋！</p>
-      </div>
+    <div class="load-video-container" style="background:linear-gradient(180deg, #0a0a14 0%, #0d0d1a 100%)">
       <div class="load-progress">
+        <div class="load-logo">📈</div>
+        <h2 style="color:#e5e7eb;font-size:20px;margin:12px 0 24px">K线模拟器</h2>
         <div class="load-progress-bar"><div class="load-progress-fill" id="loadProgressFill"></div></div>
         <p class="load-progress-text" id="loadProgressText">正在读取存档...</p>
-        <p class="load-skip-hint">点击屏幕或按任意键跳过 ⏭</p>
       </div>
     </div>
   </div>

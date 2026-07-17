@@ -112,14 +112,6 @@ const App = (() => {
     var splash = $('#splashScreen'); if (splash) splash.style.display = 'none';
     var load = $('#loadScreen'); if (!load) { if (callback) callback(); return; }
     load.style.display = 'flex';
-    // 隐藏视频相关元素
-    var vc = document.querySelector('.load-video-container');
-    if (vc) vc.style.background = 'linear-gradient(180deg, #0a0a14 0%, #0d0d1a 100%)';
-    var video = document.getElementById('loadVideo'); if (video) { video.pause(); video.style.display = 'none'; }
-    var audio = document.getElementById('loadAudio'); if (audio) { audio.pause(); audio.style.display = 'none'; }
-    var icon = document.querySelector('.load-icon-overlay'); if (icon) icon.style.display = 'none';
-    var skip = document.querySelector('.load-skip-hint'); if (skip) skip.style.display = 'none';
-    // 显示简洁加载界面
     var fill = $('#loadProgressFill');
     var text = $('#loadProgressText');
     var msgs = ['正在创建新存档...', '初始化交易账户...', '加载市场数据...', '准备就绪...'];
@@ -142,125 +134,27 @@ const App = (() => {
     var splash = $('#splashScreen'); if (splash) splash.style.display = 'none';
     var load = $('#loadScreen'); if (!load) { if (callback) callback(); return; }
     load.style.display = 'flex';
-
-    loadVideoEl = document.getElementById('loadVideo');
-    loadAudioEl = document.getElementById('loadAudio');
-
-    // 恢复视频/音频/容器（可能被 showPlainLoadScreen 或 skip 隐藏）
-    if (loadVideoEl) loadVideoEl.style.display = '';
-    if (loadAudioEl) loadAudioEl.style.display = '';
-    var vc = document.querySelector('.load-video-container');
-    if (vc) vc.style.background = '';
-    var iconOverlay = document.querySelector('.load-icon-overlay');
-    if (iconOverlay) iconOverlay.style.display = '';
-    var hint = document.querySelector('.load-skip-hint');
-    if (hint) hint.style.display = '';
-
-    // B站嵌入式播放器 — 自带音频, 无需ffmpeg
-    var iframe1 = document.getElementById('loadVideo');
-    var iframe2 = document.getElementById('loadVideo2');
-    // B站播放器参数: autoplay=1 muted=0 loop=0 t=0(从0s开始)
-    var PLAYER1 = 'https://player.bilibili.com/player.html?bvid=BV1va14BLEEa&autoplay=1&muted=0&t=0&loop=0&highQuality=1';
-    var PLAYER2 = 'https://player.bilibili.com/player.html?bvid=BV1S5FWzcEGV&autoplay=1&muted=0&t=0&loop=0&highQuality=1';
-    var duration = 12;
-    var activeVideo = 1;
-
-    if (iframe1) iframe1.src = PLAYER1;
-    // 延迟加载第二个, 先让第一个播放
-    setTimeout(function() { if (iframe2) iframe2.src = PLAYER2; }, 500);
-
-    // 每6s切换一次iframe (B站循环版约6s一个循环)
-    switchInterval = setInterval(function() {
-      if (activeVideo === 1) {
-        activeVideo = 2;
-        if (iframe2) { iframe2.style.opacity = '1'; iframe2.src = PLAYER2 + '&autoplay=1&t=0'; }
-        if (iframe1) iframe1.style.opacity = '0';
-      } else {
-        activeVideo = 1;
-        if (iframe1) { iframe1.style.opacity = '1'; iframe1.src = PLAYER1 + '&autoplay=1&t=0'; }
-        if (iframe2) iframe2.style.opacity = '0';
-      }
-    }, 7000);
-
     var fill = $('#loadProgressFill');
     var text = $('#loadProgressText');
-    var startTime = Date.now();
-    var skipped = false;
     var msgs = ['正在读取存档...', '加载K线数据...', '初始化交易引擎...', '同步市场情绪...', '即将进入...'];
-
-    // Skip button handler
-    var skipHandler = function() {
-      if (skipped) return;
-      skipped = true;
-      stopLoadMedia();
-      // 隐藏视频和音频元素
-      var sv = document.getElementById('loadVideo'); if (sv) sv.style.display = 'none';
-      var sa = document.getElementById('loadAudio'); if (sa) sa.style.display = 'none';
-      // 切换到普通加载界面
-      var vc = document.querySelector('.load-video-container');
-      if (vc) vc.style.background = 'linear-gradient(180deg, #0a0a14 0%, #0d0d1a 100%)';
-      var icon = document.querySelector('.load-icon-overlay'); if (icon) icon.style.display = 'none';
-      // 加速进度条
-      simpleLoadProgress(fill, text, msgs, callback, 250, startTime);
-    };
-
-    // 绑定跳过：点击视频区域或按任意键
-    if (load) load.addEventListener('click', skipHandler, {once: true});
-    document.addEventListener('keydown', skipHandler, {once: true});
-
-    // 正常加载（根据视频时长）
+    var progress = 0;
     loadTimer = setInterval(function() {
-      var elapsed = (Date.now() - startTime) / 1000;
-      var pct = Math.min(100, (elapsed / duration) * 100);
-      if (fill) fill.style.width = pct + '%';
-      if (text) text.textContent = msgs[Math.min(Math.floor(pct / 25), msgs.length - 1)];
-      if (elapsed >= duration) {
-        clearInterval(loadTimer);
+      progress += 6 + Math.random() * 10;
+      if (progress >= 100) { progress = 100; clearInterval(loadTimer);
         if (fill) fill.style.width = '100%';
         if (text) text.textContent = '✓ 加载完成';
-        stopLoadMedia();
-        setTimeout(function() {
-          load.style.display = 'none';
-          if (callback) callback();
-        }, 400);
+        setTimeout(function() { load.style.display = 'none'; if (callback) callback(); }, 500);
+      } else {
+        if (fill) fill.style.width = progress + '%';
+        if (text) text.textContent = msgs[Math.min(Math.floor(progress/25), msgs.length-1)];
       }
     }, 250);
   }
 
-  function simpleLoadProgress(fill, text, msgs, callback, interval, startTime) {
-    var simDuration = 4; // 跳过时4秒快速加载
-    loadTimer = setInterval(function() {
-      var elapsed = (Date.now() - startTime) / 1000;
-      var pct = Math.min(100, (elapsed / simDuration) * 100);
-      if (fill) fill.style.width = pct + '%';
-      if (text) text.textContent = msgs[Math.min(Math.floor(pct / 25), msgs.length - 1)];
-      if (elapsed >= simDuration) {
-        clearInterval(loadTimer);
-        if (fill) fill.style.width = '100%';
-        if (text) text.textContent = '✓ 加载完成';
-        stopLoadMedia();
-        var load = $('#loadScreen'); if (load) load.style.display = 'none';
-        if (callback) callback();
-      }
-    }, interval);
-  }
-
   function hideSplash() {
-    stopLoadMedia(); // 安全停止所有加载媒体
-    var splash = $('#splashScreen'); if (splash) { splash.style.transition = 'opacity 0.5s'; splash.style.opacity = '0'; setTimeout(function() { splash.style.display = 'none'; }, 500); }
-    // Start main app after splash
-    init();
-  }
-
-  // 停止并重置所有加载画面媒体（视频+音频）
-  var switchInterval = null;
-  function stopLoadMedia() {
     if (loadTimer) { clearInterval(loadTimer); loadTimer = null; }
-    if (switchInterval) { clearInterval(switchInterval); switchInterval = null; }
-    // 停止iframe播放(清空src)
-    var v = document.getElementById('loadVideo'); if (v) { v.src = ''; v.style.opacity = '1'; }
-    var v2 = document.getElementById('loadVideo2'); if (v2) { v2.src = ''; v2.style.opacity = '0'; }
-    loadVideoEl = null; loadAudioEl = null;
+    var splash = $('#splashScreen'); if (splash) { splash.style.transition = 'opacity 0.5s'; splash.style.opacity = '0'; setTimeout(function() { splash.style.display = 'none'; }, 500); }
+    init();
   }
 
   function init() {
