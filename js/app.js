@@ -137,7 +137,7 @@ const App = (() => {
     }, 300);
   }
 
-  var loadTimer = null, loadVideoEl = null, loadAudioEl = null;
+  var loadTimer = null, loadVideoEl = null, loadAudioEl = null, switchInterval = null;
   function showLoadScreen(callback) {
     var splash = $('#splashScreen'); if (splash) splash.style.display = 'none';
     var load = $('#loadScreen'); if (!load) { if (callback) callback(); return; }
@@ -162,22 +162,34 @@ const App = (() => {
     var audio1 = document.getElementById('loadAudio');
     var audio2 = document.getElementById('loadAudio2');
     var duration = 12;
+    var activeVideo = 1;
 
     function playV1() {
-      if (video2) { video2.style.display = 'none'; video2.pause(); }
-      if (audio2) audio2.pause();
-      if (video1) { video1.style.display = ''; video1.currentTime = 0; video1.play().catch(function(){}); }
+      activeVideo = 1;
+      if (video2) { video2.style.opacity = '0'; video2.pause(); }
+      if (audio2) { audio2.pause(); audio2.currentTime = 0; }
+      if (video1) { video1.style.opacity = '1'; video1.currentTime = 0; video1.play().catch(function(){}); }
       if (audio1) { audio1.currentTime = 0; audio1.play().catch(function(){}); }
     }
     function playV2() {
-      if (video1) { video1.style.display = 'none'; video1.pause(); }
-      if (audio1) audio1.pause();
-      if (video2) { video2.style.display = ''; video2.currentTime = 0; video2.play().catch(function(){}); }
+      activeVideo = 2;
+      if (video1) { video1.style.opacity = '0'; video1.pause(); }
+      if (audio1) { audio1.pause(); audio1.currentTime = 0; }
+      if (video2) { video2.style.opacity = '1'; video2.currentTime = 0; video2.play().catch(function(){}); }
       if (audio2) { audio2.currentTime = 0; audio2.play().catch(function(){}); }
     }
-    if (video1) { video1.addEventListener('ended', playV2); }
-    if (video2) { video2.addEventListener('ended', playV1); }
+    function nextVideo() {
+      if (activeVideo === 1) playV2(); else playV1();
+    }
+    if (video1) { video1.addEventListener('ended', nextVideo); }
+    if (video2) { video2.addEventListener('ended', nextVideo); }
     playV1();
+
+    // 备用: 每7s强制切换一次 (防止ended不触发)
+    switchInterval = setInterval(function() {
+      var v = activeVideo === 1 ? video1 : video2;
+      if (v && v.currentTime > 6) nextVideo();
+    }, 1000);
 
     var fill = $('#loadProgressFill');
     var text = $('#loadProgressText');
@@ -250,10 +262,12 @@ const App = (() => {
   }
 
   // 停止并重置所有加载画面媒体（视频+音频）
+  var switchInterval = null;
   function stopLoadMedia() {
     if (loadTimer) { clearInterval(loadTimer); loadTimer = null; }
-    var v = document.getElementById('loadVideo'); if (v) { v.pause(); v.currentTime = 0; }
-    var v2 = document.getElementById('loadVideo2'); if (v2) { v2.pause(); v2.currentTime = 0; }
+    if (switchInterval) { clearInterval(switchInterval); switchInterval = null; }
+    var v = document.getElementById('loadVideo'); if (v) { v.pause(); v.currentTime = 0; v.style.opacity = '1'; }
+    var v2 = document.getElementById('loadVideo2'); if (v2) { v2.pause(); v2.currentTime = 0; v2.style.opacity = '0'; }
     var a = document.getElementById('loadAudio'); if (a) { a.pause(); a.currentTime = 0; }
     var a2 = document.getElementById('loadAudio2'); if (a2) { a2.pause(); a2.currentTime = 0; }
     loadVideoEl = null; loadAudioEl = null;
