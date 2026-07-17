@@ -1462,6 +1462,11 @@ const App = (() => {
     togglePatternPanel:togglePatternPanel,
     toggleOverlayStock:toggleOverlayStock,
     showEquityModal:showEquityModal,
+    startTutorial:function(){
+      if(typeof TutorialUI!=='undefined'&&typeof TutorialContent!=='undefined'){
+        TutorialUI.init(TutorialContent);
+      }
+    },
   };
 })();
 document.addEventListener('DOMContentLoaded',function(){App.start();});

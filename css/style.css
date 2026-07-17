@@ -1716,3 +1716,948 @@ body.drawing-crosshair .chart-container canvas { cursor: crosshair !important; }
   from { opacity: 1; }
   to   { opacity: 0; }
 }
+
+/* ============================================
+   Tutorial Overlay — Game-inspired UI
+   Persona 5 / Hades / Darkest Dungeon fusion
+   Peak-End Rule, Zeigarnik, Social Currency
+   ============================================ */
+
+/* ── Overlay Shell ── */
+#tutorial-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: -apple-system, "Microsoft YaHei", "PingFang SC", sans-serif;
+  color: #e0e0e0;
+  overflow: hidden;
+}
+
+/* ── Background ── */
+.tut-bg {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, #0a0a10 0%, #0d1117 30%, #0a0e14 60%, #08080c 100%);
+  z-index: 0;
+}
+.tut-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(66,165,245,0.04) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 20%, rgba(255,215,0,0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 80%, rgba(66,165,245,0.03) 0%, transparent 50%);
+  z-index: 1;
+}
+
+/* ── Particles Canvas ── */
+.tut-particles {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* ── Progress Bar (Zeigarnik Effect) ── */
+.tut-progress-wrap {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.tut-progress-track {
+  width: 260px;
+  height: 6px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.tut-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #42a5f5, #ffd700);
+  border-radius: 3px;
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+.tut-progress-fill::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 20px;
+  height: 100%;
+  background: #fff;
+  opacity: 0.3;
+  border-radius: 0 3px 3px 0;
+}
+.tut-progress-flash {
+  filter: brightness(1.6);
+}
+.tut-progress-text {
+  font-size: 12px;
+  font-weight: 700;
+  color: #ffd700;
+  font-family: var(--font-mono);
+  min-width: 36px;
+  text-align: center;
+  letter-spacing: 1px;
+}
+
+/* ── Skip Button ── */
+.tut-skip-btn {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  z-index: 10;
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 50%;
+  background: rgba(0,0,0,0.4);
+  color: rgba(255,255,255,0.5);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s;
+  font-family: inherit;
+}
+.tut-skip-btn:hover {
+  color: #fff;
+  border-color: rgba(255,255,255,0.3);
+  background: rgba(255,82,82,0.15);
+}
+
+/* ── Chapter Tag (Persona 5 cut-in style) ── */
+.tut-chapter-tag {
+  position: absolute;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%) skewX(-8deg);
+  z-index: 5;
+  background: #ff5252;
+  color: #fff;
+  padding: 5px 20px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+  display: none;
+  animation: tutChapterPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes tutChapterPop {
+  from { opacity: 0; transform: translateX(-50%) skewX(-8deg) scale(0.8); }
+  to   { opacity: 1; transform: translateX(-50%) skewX(-8deg) scale(1); }
+}
+
+/* ── Main Stage ── */
+.tut-main-stage {
+  position: relative;
+  z-index: 5;
+  width: 520px;
+  max-width: 94vw;
+  max-height: 80vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* ── Screen Transitions ── */
+.tut-screen {
+  animation: tutScreenIn 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.tut-screen-enter {
+  animation: tutScreenIn 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes tutScreenIn {
+  from { opacity: 0; transform: translateY(var(--slide-dir, 20px)); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Welcome Screen ── */
+.tut-welcome {
+  text-align: center;
+  padding: 20px 0;
+}
+.tut-welcome-logo {
+  margin-bottom: 10px;
+}
+.tut-logo-icon {
+  font-size: 56px;
+  display: block;
+  margin-bottom: 8px;
+  animation: tutFloat 3s ease-in-out infinite;
+}
+@keyframes tutFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+.tut-welcome-title {
+  font-size: 32px;
+  font-weight: 900;
+  background: linear-gradient(135deg, #ffd700 0%, #ffaa00 40%, #ffd700 80%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0;
+  letter-spacing: 2px;
+}
+.tut-welcome-subtitle {
+  font-size: 14px;
+  color: rgba(255,255,255,0.5);
+  margin-top: 4px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+}
+
+/* Glitch text (Darkest Dungeon vibe) */
+.tut-welcome-glitch {
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 6px;
+  color: #42a5f5;
+  margin: 24px 0 8px;
+  position: relative;
+  animation: tutGlitch 2s ease-in-out infinite;
+}
+@keyframes tutGlitch {
+  0%, 90%, 100% { transform: translate(0); }
+  92% { transform: translate(-3px, 1px); }
+  94% { transform: translate(3px, -1px); }
+  96% { transform: translate(-1px, -1px); }
+  98% { transform: translate(1px, 1px); }
+}
+
+.tut-welcome-desc {
+  font-size: 15px;
+  color: rgba(255,255,255,0.7);
+  margin: 8px 0 20px;
+  line-height: 1.6;
+}
+
+/* Social Proof */
+.tut-social-proof {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 18px;
+  background: rgba(255,215,0,0.06);
+  border: 1px solid rgba(255,215,0,0.15);
+  border-radius: 20px;
+  font-size: 13px;
+  color: rgba(255,255,255,0.6);
+  margin-bottom: 24px;
+}
+.tut-social-icon { font-size: 16px; }
+#tutSocialCount {
+  font-weight: 700;
+  color: #ffd700;
+  font-family: var(--font-mono);
+  transition: color 0.2s;
+}
+
+/* ── Buttons ── */
+.tut-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.25s;
+  position: relative;
+  overflow: hidden;
+}
+.tut-btn-primary {
+  background: linear-gradient(135deg, #42a5f5, #1e88e5);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(66,165,245,0.3);
+}
+.tut-btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(66,165,245,0.45);
+  filter: brightness(1.1);
+}
+.tut-btn-primary:active {
+  transform: translateY(0);
+}
+.tut-btn-ghost {
+  background: transparent;
+  color: rgba(255,255,255,0.5);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.tut-btn-ghost:hover {
+  color: #fff;
+  border-color: rgba(255,255,255,0.3);
+  background: rgba(255,255,255,0.04);
+}
+.tut-btn-outline {
+  background: transparent;
+  color: #ffd700;
+  border: 1px solid rgba(255,215,0,0.3);
+}
+.tut-btn-outline:hover {
+  background: rgba(255,215,0,0.08);
+  border-color: rgba(255,215,0,0.5);
+}
+.tut-btn-large {
+  padding: 14px 36px;
+  font-size: 16px;
+}
+
+/* Pulsing animation for primary CTA */
+.tut-pulse {
+  animation: tutPulse 2s ease-in-out infinite;
+}
+@keyframes tutPulse {
+  0%, 100% { box-shadow: 0 4px 16px rgba(66,165,245,0.3); }
+  50% { box-shadow: 0 4px 28px rgba(66,165,245,0.6), 0 0 40px rgba(66,165,245,0.15); }
+}
+.tut-btn-arrow {
+  font-size: 18px;
+  transition: transform 0.25s;
+}
+.tut-btn:hover .tut-btn-arrow {
+  transform: translateX(3px);
+}
+
+/* ── Step Screen ── */
+.tut-step-screen {
+  padding: 10px 0;
+}
+.tut-step-header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+.tut-step-chapter {
+  font-size: 12px;
+  font-weight: 800;
+  color: #ff5252;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  margin: 0 0 6px;
+}
+.tut-step-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: #fff;
+  margin: 0;
+  letter-spacing: 1px;
+}
+
+.tut-step-body {
+  margin-bottom: 24px;
+}
+.tut-step-text {
+  font-size: 14px;
+  line-height: 1.75;
+  color: rgba(255,255,255,0.75);
+  max-height: 160px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+  padding: 0 4px;
+}
+.tut-step-text p {
+  margin-bottom: 8px;
+}
+.tut-step-text strong {
+  color: #ffd700;
+  font-weight: 700;
+}
+.tut-step-text em {
+  color: #42a5f5;
+  font-style: normal;
+}
+
+.tut-step-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ── Step Dots (Zeigarnik) ── */
+.tut-step-dots {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 24px;
+}
+.tut-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.1);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  position: relative;
+}
+.tut-dot-active {
+  background: #42a5f5;
+  box-shadow: 0 0 12px rgba(66,165,245,0.5);
+  transform: scale(1.3);
+}
+.tut-dot-complete {
+  background: #ffd700;
+  box-shadow: 0 0 8px rgba(255,215,0,0.4);
+}
+.tut-dot-complete::after {
+  content: '✓';
+  position: absolute;
+  top: -2px;
+  left: 3px;
+  font-size: 8px;
+  color: #1a1a1a;
+  font-weight: 900;
+}
+.tut-dot-completing {
+  animation: tutDotPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes tutDotPop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.8); }
+  100% { transform: scale(1); }
+}
+
+/* ── Interactive Zone (IKEA Effect) ── */
+.tut-interactive-zone {
+  margin: 8px 0;
+}
+.tut-ikea-area {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+}
+.tut-ikea-hint {
+  font-size: 13px;
+  color: rgba(255,255,255,0.45);
+  margin-bottom: 12px;
+}
+.tut-ikea-canvas {
+  display: block;
+  margin: 0 auto;
+  border-radius: 8px;
+  background: rgba(0,0,0,0.3);
+  cursor: crosshair;
+  border: 1px solid rgba(255,255,255,0.08);
+  max-width: 100%;
+  height: auto;
+}
+.tut-ikea-feedback {
+  margin-top: 12px;
+  min-height: 24px;
+}
+.tut-ikea-success {
+  color: #66bb6a;
+  font-weight: 600;
+  font-size: 13px;
+  animation: tutFadeInUp 0.3s ease-out;
+}
+@keyframes tutFadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Pattern choice buttons */
+.tut-pattern-choices {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.tut-pattern-btn {
+  padding: 10px 20px;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.7);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.25s;
+}
+.tut-pattern-btn:hover {
+  border-color: #42a5f5;
+  color: #fff;
+  background: rgba(66,165,245,0.1);
+}
+.tut-pattern-selected {
+  border-color: #66bb6a !important;
+  background: rgba(102,187,106,0.15) !important;
+  color: #66bb6a !important;
+}
+
+/* Slider */
+.tut-slider-wrap {
+  margin: 12px 0;
+}
+.tut-slider {
+  width: 100%;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: linear-gradient(90deg, #66bb6a, #ffd700, #ff5252);
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+}
+.tut-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid #ffd700;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+.tut-slider-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.35);
+}
+
+/* ── Chapter Select Screen ── */
+.tut-chapter-screen {
+  text-align: center;
+  padding: 10px 0;
+}
+.tut-chapter-screen-title {
+  font-size: 24px;
+  font-weight: 800;
+  color: #fff;
+  margin: 0 0 24px;
+  letter-spacing: 1px;
+}
+.tut-chapter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.tut-chapter-card {
+  position: relative;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 24px 12px 20px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  overflow: hidden;
+}
+.tut-chapter-card.unlocked:hover {
+  transform: translateY(-4px);
+  border-color: rgba(66,165,245,0.4);
+  box-shadow: 0 8px 24px rgba(66,165,245,0.12);
+}
+.tut-chapter-card.completed {
+  border-color: rgba(255,215,0,0.3);
+  background: rgba(255,215,0,0.04);
+}
+.tut-chapter-card.locked {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
+}
+.tut-chapter-card.locked:hover {
+  opacity: 0.6;
+}
+
+.tut-chapter-card-icon {
+  font-size: 32px;
+  margin-bottom: 8px;
+  position: relative;
+  z-index: 1;
+}
+.tut-chapter-card-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.8);
+  position: relative;
+  z-index: 1;
+}
+.tut-chapter-card-lock-hint {
+  font-size: 10px;
+  color: rgba(255,255,255,0.3);
+  margin-top: 4px;
+  position: relative;
+  z-index: 1;
+}
+.tut-chapter-card-sparkle {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  font-size: 18px;
+  color: #ffd700;
+  animation: tutSparkle 1.5s ease-in-out infinite;
+  z-index: 1;
+}
+@keyframes tutSparkle {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.3); }
+}
+.tut-chapter-card-check {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #66bb6a;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+.tut-chapter-card-shine {
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 60%);
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+.tut-chapter-card.unlocked:hover .tut-chapter-card-shine {
+  opacity: 1;
+}
+
+/* Shake for locked */
+.tut-shake {
+  animation: tutShake 0.4s ease-in-out;
+}
+@keyframes tutShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(2px); }
+}
+
+/* ── Finale Screen (Peak-End Rule) ── */
+.tut-finale-screen {
+  text-align: center;
+  position: relative;
+}
+.tut-finale-fireworks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+.tut-finale-content {
+  position: relative;
+  z-index: 1;
+  padding: 10px 0;
+}
+
+.tut-finale-badge {
+  font-size: 64px;
+  display: block;
+  margin-bottom: 8px;
+  animation: tutBadgeBounce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes tutBadgeBounce {
+  from { opacity: 0; transform: scale(0.3) rotate(-15deg); }
+  to   { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+.tut-finale-title {
+  font-size: 30px;
+  font-weight: 900;
+  background: linear-gradient(135deg, #ffd700, #ffaa00, #ffd700);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0 0 8px;
+}
+.tut-finale-subtitle {
+  font-size: 15px;
+  color: rgba(255,255,255,0.6);
+  margin: 0 0 20px;
+}
+
+/* Firework particles */
+.tut-firework-particle {
+  position: absolute;
+  bottom: 0;
+  border-radius: 50%;
+  pointer-events: none;
+}
+@keyframes tutFirework {
+  0% { transform: translateY(0) translateX(0); opacity: 1; }
+  100% { transform: translateY(-300px) translateX(var(--drift, 0px)); opacity: 0; }
+}
+
+/* ── Stats Cards ── */
+.tut-finale-stats {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+}
+.tut-stat-card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding: 14px 20px;
+  min-width: 100px;
+  text-align: center;
+}
+.tut-stat-value {
+  font-size: 22px;
+  font-weight: 900;
+  color: #ffd700;
+  font-family: var(--font-mono);
+  margin-bottom: 4px;
+}
+.tut-stat-label {
+  font-size: 11px;
+  color: rgba(255,255,255,0.45);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* ── Share Card (Social Currency) ── */
+.tut-share-card-wrap {
+  margin: 0 auto 24px;
+  max-width: 340px;
+}
+.tut-share-card {
+  position: relative;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460);
+  border: 2px solid rgba(255,215,0,0.3);
+  box-shadow: 0 0 40px rgba(255,215,0,0.08), 0 8px 32px rgba(0,0,0,0.4);
+  overflow: hidden;
+}
+.tut-share-card-inner {
+  padding: 20px 24px;
+  position: relative;
+  z-index: 1;
+}
+.tut-share-card-glow {
+  position: absolute;
+  inset: -2px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(255,215,0,0.06), transparent 50%, rgba(66,165,245,0.04));
+  pointer-events: none;
+  z-index: 0;
+}
+
+.tut-share-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.tut-share-card-icon {
+  font-size: 24px;
+}
+.tut-share-card-brand {
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.6);
+}
+
+.tut-share-card-level {
+  font-size: 10px;
+  font-weight: 800;
+  color: rgba(255,255,255,0.35);
+  letter-spacing: 3px;
+  margin-bottom: 2px;
+}
+.tut-share-card-rank {
+  font-size: 28px;
+  font-weight: 900;
+  color: #ffd700;
+  letter-spacing: 4px;
+  margin-bottom: 14px;
+  text-shadow: 0 0 20px rgba(255,215,0,0.3);
+}
+
+.tut-share-card-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,215,0,0.3), transparent);
+  margin-bottom: 14px;
+}
+
+.tut-share-card-skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+.tut-skill-tag {
+  display: inline-block;
+  padding: 3px 10px;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 12px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.7);
+  background: rgba(255,255,255,0.04);
+}
+
+.tut-share-card-trait {
+  text-align: center;
+  padding: 10px;
+  background: rgba(255,215,0,0.05);
+  border-radius: 10px;
+  border: 1px solid rgba(255,215,0,0.1);
+}
+.tut-trait-icon {
+  font-size: 28px;
+  margin-bottom: 4px;
+}
+.tut-trait-name {
+  font-size: 16px;
+  font-weight: 800;
+  color: #ffd700;
+  margin-bottom: 2px;
+}
+.tut-trait-desc {
+  font-size: 11px;
+  color: rgba(255,255,255,0.5);
+}
+
+.tut-share-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 14px;
+  font-size: 10px;
+  color: rgba(255,255,255,0.3);
+}
+.tut-share-card-date {
+  color: rgba(255,255,255,0.5);
+  font-family: var(--font-mono);
+}
+
+.tut-finale-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* ── Corner Candles (GIF-able animation) ── */
+.tut-corner-candles {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  display: flex;
+  gap: 4px;
+  align-items: flex-end;
+  height: 50px;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0.25;
+}
+.tut-candle {
+  width: 8px;
+  border-radius: 2px;
+  position: relative;
+  transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.tut-candle-up {
+  background: transparent;
+  border: 2px solid #ff5252;
+  height: 30px;
+  border-top-width: 2px;
+  border-bottom-width: 0;
+}
+.tut-candle-down {
+  background: transparent;
+  border: 2px solid #66bb6a;
+  height: 30px;
+  border-top-width: 0;
+  border-bottom-width: 2px;
+}
+.tut-candle::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.tut-candle-up::after {
+  top: -8px;
+  width: 2px;
+  height: 6px;
+  background: #ff5252;
+  border-radius: 1px;
+}
+.tut-candle-down::after {
+  bottom: -8px;
+  width: 2px;
+  height: 6px;
+  background: #66bb6a;
+  border-radius: 1px;
+}
+.tut-candle-lit {
+  animation: tutCandleFlicker 1.2s ease-out;
+}
+@keyframes tutCandleFlicker {
+  0% { opacity: 0.3; filter: brightness(0.5); }
+  30% { opacity: 1; filter: brightness(2.5); box-shadow: 0 0 12px currentColor; }
+  60% { opacity: 1; filter: brightness(1.8); box-shadow: 0 0 8px currentColor; }
+  100% { opacity: 0.5; filter: brightness(1); box-shadow: none; }
+}
+
+/* ── Mini Toast ── */
+.tut-mini-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  background: rgba(30,30,40,0.95);
+  border: 1px solid rgba(255,215,0,0.3);
+  border-radius: 8px;
+  padding: 10px 24px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffd700;
+  z-index: 5000;
+  pointer-events: none;
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  font-family: var(--font-stack);
+}
+.tut-mini-toast-show {
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ── Scrollbar for tutorial stage ── */
+.tut-main-stage::-webkit-scrollbar {
+  width: 4px;
+}
+.tut-main-stage::-webkit-scrollbar-track {
+  background: transparent;
+}
+.tut-main-stage::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.1);
+  border-radius: 2px;
+}

@@ -36,6 +36,7 @@
         <button class="icon-btn draw-btn" data-tool="measure" title="测量工具 (M)" onclick="App.activateDraw('measure')">📐</button>
         <button class="icon-btn" id="btnClearDraw" title="清除画线" onclick="App.clearDraws()">🗑</button>
       </div>
+      <button class="icon-btn" id="btnTutorial" title="教程" onclick="App.startTutorial()">📖</button>
       <button class="icon-btn" id="btnAlerts" title="价格警报" onclick="App.toggleAlertPanel()">🔔</button>
       <button class="icon-btn overlay-btn" id="btnOverlayToggle" title="多股对比模式" onclick="App.toggleOverlay()">📊</button>
       <button class="icon-btn" id="themeToggle" title="切换主题">🌙</button>
@@ -338,6 +339,8 @@
   <script src="js/analytics.js"></script>
   <script src="js/achievements.js"></script>
   <script src="js/achievement-toast.js"></script>
+  <script src="js/tutorial-content.js"></script>
+  <script src="js/tutorial-ui.js"></script>
   <script src="js/app.js"></script>
 
   <!-- Toast -->
