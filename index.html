@@ -24,7 +24,7 @@
         <!-- JS动态生成5个存档槽位 -->
       </div>
       <div class="splash-actions">
-        <button class="splash-btn primary" id="btnNewGame">🆕 新游戏</button>
+        <button class="splash-btn primary" id="btnNewGame" onclick="App.startNewGame()">🆕 新游戏</button>
       </div>
       <div class="splash-footer">
         <span id="splashVersion">v2.0 · 20+模块</span>
@@ -37,9 +37,9 @@
   <!-- ═══════════════════════════════════════════════ -->
   <div class="load-overlay" id="loadScreen" style="display:none">
     <div class="load-video-container">
-      <video id="loadVideo" loop autoplay playsinline style="width:100%;height:100%;object-fit:cover"
+      <video id="loadVideo" loop playsinline preload="none" style="width:100%;height:100%;object-fit:cover"
         src="assets/loadscreen-video.f30016.mp4"></video>
-      <audio id="loadAudio" loop autoplay src="assets/loadscreen-video.f30216.m4a"></audio>
+      <audio id="loadAudio" loop preload="none" src="assets/loadscreen-video.f30216.m4a"></audio>
       <!-- App图标PS覆盖在赌神头上 -->
       <div class="load-icon-overlay">
         <img src="icons/icon-256.png" alt="K线模拟器" class="load-app-icon" />

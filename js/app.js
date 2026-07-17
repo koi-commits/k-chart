@@ -39,13 +39,7 @@ const App = (() => {
   }
 
   function bindSplashEvents() {
-    on($('#btnNewGame'), 'click', function() { startNewGame(); });
-    $$('.save-slot:not(.empty)').forEach(function(slot) {
-      slot.addEventListener('click', function(e) {
-        if (e.target.closest('.slot-delete')) return;
-        loadGame(parseInt(slot.dataset.slot));
-      });
-    });
+    // 删除按钮（需要stopPropagation防止触发存档加载）
     $$('.slot-delete').forEach(function(btn) {
       btn.addEventListener('click', function(e) {
         e.stopPropagation();
@@ -63,7 +57,7 @@ const App = (() => {
       var save = saves[i];
       if (save) {
         var meta = SaveManager.formatSaveMeta(save);
-        html += '<div class="save-slot" data-slot="' + i + '">' +
+        html += '<div class="save-slot" data-slot="' + i + '" onclick="App.loadGame(' + i + ')">' +
           '<div class="slot-num">' + (i + 1) + '</div>' +
           '<div class="slot-info"><div class="slot-name">' + (meta.name || '存档'+(i+1)) + '</div>' +
           '<div class="slot-meta"><span>📅 ' + meta.date + '</span><span>📊 ' + meta.trades + '笔</span><span>🏆 ' + meta.achievements + '</span></div></div>' +
@@ -109,7 +103,7 @@ const App = (() => {
     // 隐藏视频相关元素
     var vc = document.querySelector('.load-video-container');
     if (vc) vc.style.background = 'linear-gradient(180deg, #0a0a14 0%, #0d0d1a 100%)';
-    var video = document.getElementById('loadVideo'); if (video) video.style.display = 'none';
+    var video = document.getElementById('loadVideo'); if (video) { video.pause(); video.style.display = 'none'; }
     var audio = document.getElementById('loadAudio'); if (audio) { audio.pause(); audio.style.display = 'none'; }
     var icon = document.querySelector('.load-icon-overlay'); if (icon) icon.style.display = 'none';
     var skip = document.querySelector('.load-skip-hint'); if (skip) skip.style.display = 'none';
@@ -140,6 +134,16 @@ const App = (() => {
     loadVideoEl = document.getElementById('loadVideo');
     loadAudioEl = document.getElementById('loadAudio');
 
+    // 恢复视频/音频/容器（可能被 showPlainLoadScreen 或 skip 隐藏）
+    if (loadVideoEl) loadVideoEl.style.display = '';
+    if (loadAudioEl) loadAudioEl.style.display = '';
+    var vc = document.querySelector('.load-video-container');
+    if (vc) vc.style.background = '';
+    var iconOverlay = document.querySelector('.load-icon-overlay');
+    if (iconOverlay) iconOverlay.style.display = '';
+    var hint = document.querySelector('.load-skip-hint');
+    if (hint) hint.style.display = '';
+
     // 获取视频时长作为加载总时长
     var duration = 8; // 默认8秒
     if (loadVideoEl) {
@@ -166,9 +170,10 @@ const App = (() => {
     var skipHandler = function() {
       if (skipped) return;
       skipped = true;
-      if (loadTimer) clearInterval(loadTimer);
-      if (loadVideoEl) { loadVideoEl.pause(); loadVideoEl.style.display = 'none'; }
-      if (loadAudioEl) { loadAudioEl.pause(); }
+      stopLoadMedia();
+      // 隐藏视频和音频元素
+      var sv = document.getElementById('loadVideo'); if (sv) sv.style.display = 'none';
+      var sa = document.getElementById('loadAudio'); if (sa) sa.style.display = 'none';
       // 切换到普通加载界面
       var vc = document.querySelector('.load-video-container');
       if (vc) vc.style.background = 'linear-gradient(180deg, #0a0a14 0%, #0d0d1a 100%)';
@@ -191,8 +196,7 @@ const App = (() => {
         clearInterval(loadTimer);
         if (fill) fill.style.width = '100%';
         if (text) text.textContent = '✓ 加载完成';
-        if (loadVideoEl) loadVideoEl.pause();
-        if (loadAudioEl) loadAudioEl.pause();
+        stopLoadMedia();
         setTimeout(function() {
           load.style.display = 'none';
           if (callback) callback();
@@ -212,6 +216,7 @@ const App = (() => {
         clearInterval(loadTimer);
         if (fill) fill.style.width = '100%';
         if (text) text.textContent = '✓ 加载完成';
+        stopLoadMedia();
         var load = $('#loadScreen'); if (load) load.style.display = 'none';
         if (callback) callback();
       }
@@ -219,9 +224,21 @@ const App = (() => {
   }
 
   function hideSplash() {
+    stopLoadMedia(); // 安全停止所有加载媒体
     var splash = $('#splashScreen'); if (splash) { splash.style.transition = 'opacity 0.5s'; splash.style.opacity = '0'; setTimeout(function() { splash.style.display = 'none'; }, 500); }
     // Start main app after splash
     init();
+  }
+
+  // 停止并重置所有加载画面媒体（视频+音频）
+  function stopLoadMedia() {
+    if (loadTimer) { clearInterval(loadTimer); loadTimer = null; }
+    var v = document.getElementById('loadVideo');
+    if (v) { v.pause(); v.currentTime = 0; }
+    var a = document.getElementById('loadAudio');
+    if (a) { a.pause(); a.currentTime = 0; }
+    loadVideoEl = null;
+    loadAudioEl = null;
   }
 
   function init() {
@@ -1775,6 +1792,8 @@ const App = (() => {
       SaveManager.saveSlot(slot, saves[slot] ? (saves[slot].name || '存档') : '自动存档');
       showToast('💾 游戏已保存到槽位 ' + (slot+1));
     },
+    startNewGame:startNewGame,
+    loadGame:loadGame,
     startTutorial:function(){
       if(typeof TutorialUI!=='undefined'&&typeof TutorialContent!=='undefined'){
         TutorialUI.init(TutorialContent);
