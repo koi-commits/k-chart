@@ -116,6 +116,10 @@ body {
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   transition: background 0.3s, border-color 0.3s;
+  -webkit-app-region: drag;
+}
+.toolbar button, .toolbar input, .toolbar select, .toolbar .draw-tools {
+  -webkit-app-region: no-drag;
 }
 
 .toolbar-left {
