@@ -31,6 +31,113 @@ const App = (() => {
   function val(s,v){var e=$(s);if(e&&v!==undefined)e.value=v;return e?e.value:'';}
 
   // ── Init ──
+  function initSplash() {
+    renderSaveSlots();
+    on($('#btnNewGame'), 'click', function() { startNewGame(); });
+
+    // 点击存档槽 → 加载
+    $$('.save-slot:not(.empty)').forEach(function(slot) {
+      slot.addEventListener('click', function(e) {
+        if (e.target.closest('.slot-delete')) return;
+        var idx = parseInt(slot.dataset.slot);
+        loadGame(idx);
+      });
+    });
+
+    // 删除按钮
+    $$('.slot-delete').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var idx = parseInt(btn.dataset.slot);
+        if (confirm('确定删除此存档？')) {
+          SaveManager.deleteSlot(idx);
+          renderSaveSlots();
+        }
+      });
+    });
+  }
+
+  function renderSaveSlots() {
+    var saves = (typeof SaveManager !== 'undefined') ? SaveManager.getAllSaves() : [];
+    var container = $('#splashSlots');
+    if (!container) return;
+    var html = '';
+    for (var i = 0; i < 5; i++) {
+      var save = saves[i];
+      if (save) {
+        var meta = SaveManager.formatSaveMeta(save);
+        html += '<div class="save-slot" data-slot="' + i + '">' +
+          '<div class="slot-num">' + (i + 1) + '</div>' +
+          '<div class="slot-info"><div class="slot-name">' + (meta.name || '存档 ' + (i+1)) + '</div>' +
+          '<div class="slot-meta"><span>📅 ' + meta.date + '</span><span>📊 ' + meta.trades + '笔</span><span>🏆 ' + meta.achievements + '</span></div></div>' +
+          '<div class="slot-assets ' + (meta.pnlColor || '') + '">' + meta.assets + '</div>' +
+          '<button class="slot-delete" data-slot="' + i + '">✕</button></div>';
+      } else {
+        html += '<div class="save-slot empty" data-slot="' + i + '">' +
+          '<div class="slot-num">' + (i + 1) + '</div>' +
+          '<div class="slot-info"><div class="slot-name" style="color:#666">空存档槽</div>' +
+          '<div class="slot-meta"><span>点击新游戏创建</span></div></div></div>';
+      }
+    }
+    container.innerHTML = html;
+    // Re-bind events after re-render
+    initSplash();
+  }
+
+  function startNewGame() {
+    // 自动保存到第一个空槽
+    var saves = SaveManager.getAllSaves();
+    var emptySlot = -1;
+    for (var i = 0; i < 5; i++) { if (!saves[i]) { emptySlot = i; break; } }
+    if (emptySlot < 0) emptySlot = 0; // 覆盖第一个
+    var name = prompt('给存档取个名字：', '我的交易之旅');
+    SaveManager.saveSlot(emptySlot, name || '新存档');
+    showLoadScreen(function() { hideSplash(); });
+  }
+
+  function loadGame(slotIndex) {
+    showLoadScreen(function() {
+      SaveManager.loadSlot(slotIndex);
+      hideSplash();
+    });
+  }
+
+  function showLoadScreen(callback) {
+    var splash = $('#splashScreen'); if (splash) splash.style.display = 'none';
+    var load = $('#loadScreen'); if (load) {
+      load.style.display = 'flex';
+      var video = document.getElementById('loadVideo');
+      var audio = document.getElementById('loadAudio');
+      if (video) { video.currentTime = 0; video.play().catch(function(){}); }
+      if (audio) { audio.currentTime = 0; audio.play().catch(function(){}); }
+    }
+    // 模拟加载进度
+    var progress = 0;
+    var fill = $('#loadProgressFill');
+    var text = $('#loadProgressText');
+    var msgs = ['正在读取存档...', '加载K线数据...', '初始化交易引擎...', '同步市场情绪...', '即将进入...'];
+    var interval = setInterval(function() {
+      progress += 7 + Math.random() * 8;
+      if (progress >= 100) { progress = 100; clearInterval(interval);
+        if (fill) fill.style.width = '100%';
+        if (text) text.textContent = '✓ 加载完成';
+        setTimeout(function() {
+          if (load) load.style.display = 'none';
+          if (callback) callback();
+        }, 600);
+      } else {
+        if (fill) fill.style.width = progress + '%';
+        if (text) text.textContent = msgs[Math.min(Math.floor(progress / 25), msgs.length - 1)];
+      }
+    }, 400);
+  }
+
+  function hideSplash() {
+    var splash = $('#splashScreen'); if (splash) { splash.style.transition = 'opacity 0.5s'; splash.style.opacity = '0'; setTimeout(function() { splash.style.display = 'none'; }, 500); }
+    // Start main app after splash
+    init();
+  }
+
   function init() {
     sim = Simulator.get(curSym);
     for (var i=0;i<200;i++) sim.generateTick();
@@ -416,6 +523,13 @@ const App = (() => {
     if (overlayActive && overlayStocks.length > 0) updateOverlayComparison();
 
     saveCnt++; if(saveCnt>=30){Trader.save();saveCnt=0;}
+    // 自动存档（每100 tick）
+    if (saveCnt === 15 && typeof SaveManager !== 'undefined') {
+      var saves = SaveManager.getAllSaves();
+      var as = -1;
+      for (var si = 0; si < 5; si++) { if (saves[si]) { as = si; break; } }
+      if (as >= 0) SaveManager.saveSlot(as, saves[as] ? (saves[as].name || '自动存档') : '自动存档');
+    }
     // 成就：蜡烛计数 + 每5tick检测
     if (typeof AchievementEngine !== 'undefined') {
       AchievementEngine.recordCandle();
@@ -827,7 +941,15 @@ const App = (() => {
 
   function start(){
     if(typeof LightweightCharts==='undefined'){setTimeout(start,100);return;}
-    init();
+    // 显示启动画面，用户选择存档后调用 hideSplash() → init()
+    initSplash();
+    // 如果有存档自动进入第一个
+    var saves = SaveManager.getAllSaves();
+    var hasSave = saves.some(function(s) { return !!s; });
+    if (!hasSave) {
+      // 无存档时仅显示启动画面
+      return;
+    }
   }
 
   // ── 波动率自动更新 ──
@@ -1559,6 +1681,14 @@ const App = (() => {
     togglePatternPanel:togglePatternPanel,
     toggleOverlayStock:toggleOverlayStock,
     showEquityModal:showEquityModal,
+    quickSave:function(){
+      var saves = SaveManager.getAllSaves();
+      var slot = -1;
+      for (var i = 0; i < 5; i++) { if (saves[i]) { slot = i; break; } }
+      if (slot < 0) slot = 0;
+      SaveManager.saveSlot(slot, saves[slot] ? (saves[slot].name || '存档') : '自动存档');
+      showToast('💾 游戏已保存到槽位 ' + (slot+1));
+    },
     startTutorial:function(){
       if(typeof TutorialUI!=='undefined'&&typeof TutorialContent!=='undefined'){
         TutorialUI.init(TutorialContent);

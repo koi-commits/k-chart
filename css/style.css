@@ -79,6 +79,133 @@
   --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
+/* ============================================
+   Splash Screen & Save/Load System
+   ============================================ */
+.splash-overlay {
+  position: fixed; inset: 0; z-index: 10000;
+  display: flex; align-items: center; justify-content: center;
+  background: #0a0a0f;
+}
+.splash-bg {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 30% 50%, rgba(66,165,245,0.08) 0%, transparent 60%),
+              radial-gradient(ellipse at 70% 20%, rgba(255,152,0,0.06) 0%, transparent 50%),
+              linear-gradient(180deg, #0a0a14 0%, #0d0d1a 40%, #0a0a14 100%);
+  animation: splashBgPulse 4s ease-in-out infinite;
+}
+@keyframes splashBgPulse {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
+}
+.splash-container {
+  position: relative; z-index: 1;
+  width: 520px; max-width: 95vw; max-height: 90vh;
+  display: flex; flex-direction: column; align-items: center; gap: 20px;
+}
+.splash-header { text-align: center; }
+.splash-logo { font-size: 56px; animation: splashLogoFloat 3s ease-in-out infinite; }
+@keyframes splashLogoFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+.splash-title {
+  font-size: 28px; font-weight: 800; color: #e5e7eb;
+  background: linear-gradient(135deg, #42a5f5, #ff9800);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  margin-top: 4px;
+}
+.splash-subtitle { font-size: 13px; color: #666; margin-top: 6px; }
+
+.splash-slots {
+  display: flex; flex-direction: column; gap: 8px; width: 100%;
+}
+.save-slot {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 18px; border-radius: 10px;
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+  cursor: pointer; transition: all 0.25s;
+}
+.save-slot:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.15); transform: translateX(4px); }
+.save-slot.empty { opacity: 0.45; border-style: dashed; }
+.save-slot.empty:hover { opacity: 0.7; border-color: var(--accent); }
+.save-slot .slot-num { font-size: 24px; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 10px; background: rgba(255,255,255,0.05); flex-shrink: 0; }
+.save-slot .slot-info { flex: 1; min-width: 0; }
+.save-slot .slot-name { font-size: 14px; font-weight: 700; color: #e5e7eb; }
+.save-slot .slot-meta { font-size: 10px; color: #666; margin-top: 3px; display: flex; gap: 16px; }
+.save-slot .slot-meta span { display: flex; align-items: center; gap: 4px; }
+.save-slot .slot-assets { font-size: 16px; font-weight: 700; font-family: var(--font-mono); }
+.save-slot .slot-assets.up { color: var(--up-color); }
+.save-slot .slot-assets.down { color: var(--down-color); }
+.save-slot .slot-delete {
+  width: 28px; height: 28px; border-radius: 50%; border: none;
+  background: rgba(255,82,82,0.15); color: var(--up-color);
+  font-size: 14px; cursor: pointer; transition: all 0.15s; flex-shrink: 0;
+  display: none;
+}
+.save-slot:hover .slot-delete { display: flex; align-items: center; justify-content: center; }
+.save-slot .slot-delete:hover { background: var(--up-color); color: #fff; }
+
+.splash-actions { display: flex; gap: 10px; }
+.splash-btn {
+  padding: 10px 28px; border: none; border-radius: 8px;
+  font-size: 14px; font-weight: 700; cursor: pointer;
+  font-family: var(--font-stack); transition: all 0.2s;
+}
+.splash-btn.primary {
+  background: linear-gradient(135deg, #42a5f5, #1976d2);
+  color: #fff; box-shadow: 0 4px 16px rgba(66,165,245,0.3);
+}
+.splash-btn.primary:hover { transform: translateY(-2px); box-shadow: 0 6px 24px rgba(66,165,245,0.5); filter: brightness(1.1); }
+.splash-footer { font-size: 10px; color: #444; }
+
+/* Loading Screen (赌神视频) */
+.load-overlay {
+  position: fixed; inset: 0; z-index: 20000;
+  background: #000; display: flex; align-items: center; justify-content: center;
+}
+.load-video-container {
+  position: relative; width: 100%; height: 100%; overflow: hidden;
+}
+.load-icon-overlay {
+  position: absolute; top: 8%; right: 18%;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  animation: loadIconBounce 0.6s ease-in-out infinite alternate;
+}
+@keyframes loadIconBounce {
+  0% { transform: translateY(0) rotate(-5deg); }
+  100% { transform: translateY(-10px) rotate(5deg); }
+}
+.load-app-icon {
+  width: 80px; height: 80px; border-radius: 16px;
+  box-shadow: 0 0 30px rgba(255,215,0,0.6), 0 4px 12px rgba(0,0,0,0.8);
+  border: 3px solid #ffd700;
+}
+.load-meme-text {
+  font-size: 20px; font-weight: 900; color: #ffd700;
+  text-shadow: 0 0 10px rgba(255,215,0,0.8), 0 2px 4px rgba(0,0,0,0.9);
+  font-family: "Microsoft YaHei", sans-serif;
+  letter-spacing: 2px;
+}
+.load-progress {
+  position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+  width: 300px; text-align: center;
+}
+.load-progress-bar {
+  width: 100%; height: 4px; background: rgba(255,255,255,0.15);
+  border-radius: 2px; overflow: hidden;
+}
+.load-progress-fill {
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, #42a5f5, #ff9800);
+  border-radius: 2px;
+  transition: width 0.3s ease-out;
+}
+.load-progress-text {
+  font-size: 11px; color: #999; margin-top: 8px;
+  font-family: var(--font-mono);
+}
+
 /* ---------- Global Reset ---------- */
 *, *::before, *::after {
   margin: 0;
