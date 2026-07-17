@@ -59,6 +59,13 @@ const App = (() => {
     initSentiment();
     initVolatility();
     initPatterns();
+    // 成就系统
+    if (typeof AchievementEngine !== 'undefined') {
+      AchievementEngine.init();
+      AchievementEngine.onUnlock(function(ach) {
+        if (typeof AchievementToast !== 'undefined') AchievementToast.show(ach);
+      });
+    }
     updateAll();
     play();
   }
@@ -84,6 +91,7 @@ const App = (() => {
         $$('.period-selector button').forEach(function(x){x.classList.remove('active');});
         b.classList.add('active');
         sim.switchPeriod(b.dataset.period);
+        if (typeof AchievementEngine !== 'undefined') AchievementEngine.recordTimeframe(b.dataset.period);
         ChartManager.updateData(sim.getCandles());
         txt('#candleCount','K线: '+sim.getCandles().length);
       });
@@ -280,12 +288,20 @@ const App = (() => {
   // Fix the side toggle - currentSide should be set BEFORE calling updateEstimate
   function switchPanelTab(tab) {
     $$('.panel-tab').forEach(function(t){t.classList.toggle('active',t.dataset.tab===tab);});
-    var pages = {orderbook:'#pageOrderBook',trade:'#pageTrade',positions:'#pagePositions',backtest:'#pageBacktest',analytics:'#pageAnalytics'};
+    var pages = {orderbook:'#pageOrderBook',trade:'#pageTrade',positions:'#pagePositions',backtest:'#pageBacktest',analytics:'#pageAnalytics',achievements:'#pageAchievements'};
     Object.keys(pages).forEach(function(k){var e=$(pages[k]);if(e)e.classList.toggle('active',k===tab);});
     if (tab==='positions') updatePositions();
     if (tab==='trade') { val('#tradePrice',sim.getPrice().toFixed(2)); updateEstimate(); }
     if (tab==='backtest') initBacktestPanel();
     if (tab==='analytics') { if (typeof Analytics !== 'undefined') Analytics.refresh(); }
+    if (tab==='achievements') {
+      if (typeof AchievementToast !== 'undefined') AchievementToast.renderGallery(document.getElementById('achGallery'));
+      if (typeof AchievementEngine !== 'undefined') {
+        var u = AchievementEngine.getUnlockCount(), t = AchievementEngine.getTotalCount();
+        var cnt = document.getElementById('achCount'); if (cnt) cnt.textContent = u + '/' + t;
+        var fill = document.getElementById('achProgressFill'); if (fill) fill.style.width = Math.round(u/t*100) + '%';
+      }
+    }
   }
 
   function updateTradeBtn() {
@@ -313,6 +329,15 @@ const App = (() => {
     var r = Trader.placeOrder(curSym,currentSide,shares,{slPrice:sl,tpPrice:tp});
     if (r.success) {
       showToast(r.message);
+      // 成就记录
+      if (typeof AchievementEngine !== 'undefined') {
+        AchievementEngine.recordTrade(r);
+        AchievementEngine.recordStockTraded(curSym);
+        if (sl) AchievementEngine.recordSLTP('sl');
+        if (tp) AchievementEngine.recordSLTP('tp');
+        if (sl && tp) AchievementEngine.recordOCO();
+        AchievementEngine.checkAll();
+      }
       val('#tradeShares',''); val('#tradeSL',''); val('#tradeTP','');
       updateCapitalBar(); updateHistory(); updatePositions();
       initWatchlistUI();
@@ -387,6 +412,11 @@ const App = (() => {
     if (overlayActive && overlayStocks.length > 0) updateOverlayComparison();
 
     saveCnt++; if(saveCnt>=30){Trader.save();saveCnt=0;}
+    // 成就：蜡烛计数 + 每5tick检测
+    if (typeof AchievementEngine !== 'undefined') {
+      AchievementEngine.recordCandle();
+      if (saveCnt % 5 === 0) AchievementEngine.checkAll();
+    }
 
     // Periodic persistence (every ~10s at default speed)
     if (saveCnt % 50 === 0) savePersistedState();
@@ -579,6 +609,7 @@ const App = (() => {
     }
   }
   function addHLine(price){
+    if (typeof AchievementEngine !== 'undefined') AchievementEngine.recordDrawingTool('horizontal');
     var cs = ChartManager.getCandleSeries();
     if (!cs) return;
     try {
@@ -599,6 +630,7 @@ const App = (() => {
 
   // Draw trend line using SVG overlay — extends infinitely in both directions
   function addTLine(x1,y1,x2,y2){
+    if (typeof AchievementEngine !== 'undefined') AchievementEngine.recordDrawingTool('trend');
     var svg = document.getElementById('drawSvg');
     if (!svg) return;
     // Extend line to edges of the container
@@ -898,6 +930,7 @@ const App = (() => {
     setTimeout(function() {
       var result = BacktestEngine.runAndSave(sym, config);
       if (result.error) { showToast(result.error, 'error'); return; }
+      if (typeof AchievementEngine !== 'undefined') { AchievementEngine.recordBacktest(result); AchievementEngine.checkAll(); }
       displayBacktestResults(result);
       showToast('回测完成：' + result.stats.totalTrades + '笔交易');
     }, 100);
@@ -1164,6 +1197,7 @@ const App = (() => {
 
   // ── New Drawing Functions ──
   function addFibonacci(p1, p2) {
+    if (typeof AchievementEngine !== 'undefined') AchievementEngine.recordDrawingTool('fibonacci');
     var svg = document.getElementById('drawSvg');
     if (!svg) return;
     var levels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0];
@@ -1190,6 +1224,7 @@ const App = (() => {
   }
 
   function addTextAnnotation(x, y, text) {
+    if (typeof AchievementEngine !== 'undefined') AchievementEngine.recordDrawingTool('text');
     var svg = document.getElementById('drawSvg');
     if (!svg) return;
     var txtEl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
@@ -1206,6 +1241,7 @@ const App = (() => {
   }
 
   function addMeasure(p1, p2) {
+    if (typeof AchievementEngine !== 'undefined') AchievementEngine.recordDrawingTool('measure');
     var svg = document.getElementById('drawSvg');
     if (!svg) return;
     var line = document.createElementNS('http://www.w3.org/2000/svg', 'line');

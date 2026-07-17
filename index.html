@@ -169,6 +169,7 @@
         <button class="panel-tab" data-tab="positions">持仓</button>
         <button class="panel-tab" data-tab="backtest">回测</button>
         <button class="panel-tab" data-tab="analytics">分析</button>
+        <button class="panel-tab" data-tab="achievements">成就</button>
       </div>
 
       <!-- 盘口 -->
@@ -285,6 +286,18 @@
           <div class="history-empty">选择策略模板并点击运行</div>
         </div>
       </div>
+
+      <!-- 成就 -->
+      <div class="panel-page" id="pageAchievements">
+        <div class="ach-summary" id="achSummary">
+          <span>🏆</span>
+          <span id="achCount">0/43</span>
+          <div class="ach-progress-bar"><div class="ach-progress-bar-fill" id="achProgressFill" style="width:0%"></div></div>
+        </div>
+        <div class="ach-gallery" id="achGallery" style="flex:1;overflow-y:auto">
+          <!-- AchievementEngine.renderGallery -->
+        </div>
+      </div>
     </aside>
   </div>
 
@@ -322,6 +335,8 @@
   <script src="js/backtest.js"></script>
   <script src="js/alerts.js"></script>
   <script src="js/analytics.js"></script>
+  <script src="js/achievements.js"></script>
+  <script src="js/achievement-toast.js"></script>
   <script src="js/app.js"></script>
 
   <!-- Toast -->
