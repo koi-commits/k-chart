@@ -100,7 +100,7 @@ const App = (() => {
     $$('#colConfigPopover input[type=checkbox]').forEach(function(cb){on(cb,'change',function(){updateColConfig(cb.dataset.col,cb.checked);});});
 
     // sort select
-    on($('#wlSortSelect'),'change',function(){wlSort=this.value;savePersistedState();renderStockList();});
+    on($('#wlSortSelect'),'change',function(){wlSort=this.value;try{localStorage.setItem('kline_watchlist_sort',wlSort);}catch(e){} renderStockList();});
 
     // stock list right-click context menu
     var stockListEl = document.getElementById('stockList');
@@ -119,7 +119,15 @@ const App = (() => {
     on($('#btnAlerts'),'click',function(){toggleAlertPanel();});
     on($('#btnAlertClose'),'click',function(){var p=$('#alertPanel');if(p)p.style.display='none';});
     on($('#alertPanel'),'click',function(e){if(e.target===this)this.style.display='none';});
-    on($('#btnAddAlert'),'click',addAlert);
+    on($('#btnAddAlert'),'click',function(){
+      var sym=$('#alertSymbol')?$('#alertSymbol').value:curSym;
+      var type=$('#alertType')?$('#alertType').value:'price_above';
+      var val=parseFloat($('#alertValue')?$('#alertValue').value:0)||0;
+      if(typeof AlertManager!=='undefined'){
+        AlertManager.add({symbol:sym,type:type,price:val,stockName:(Simulator.STOCKS[sym]||{}).name||sym});
+        showToast('✓ 警报已设置');
+      }
+    });
     on($('#alertType'),'change',function(){var vf=$('#alertValueField');if(vf)vf.style.display=this.value==='kdj_cross'?'none':'';});
 
     // help overlay
@@ -1387,21 +1395,34 @@ const App = (() => {
       }
     }
   };
+  // ── Stub functions (referenced by UI but defined inline or simple) ──
+  function renderAlertList() {
+    // Alert list rendering handled by alerts.js panel
+  }
+  function savePersistedState() {
+    try { localStorage.setItem('kline_watchlist_sort', wlSort); } catch(e) {}
+  }
+  function loadPersistedState() {
+    try {
+      var tab = localStorage.getItem('kline_watchlist_tab');
+      if (tab) { wlTab = tab; $$('.wl-tab').forEach(function(t){t.classList.toggle('active',t.dataset.group===wlTab);}); }
+      var srt = localStorage.getItem('kline_watchlist_sort'); if (srt) { wlSort = srt; var sEl=$('#wlSortSelect'); if(sEl)sEl.value=srt; }
+      var cols = localStorage.getItem('kline_watchlist_cols'); if (cols) { try { wlCols = JSON.parse(cols); } catch(e) {} }
+      var zx = localStorage.getItem('kline_zixuan'); if (zx) { try { zixuan = JSON.parse(zx); } catch(e) {} }
+      try { if (typeof AlertManager !== 'undefined') AlertManager.load(); } catch(e) {}
+      try { if (typeof OrderTypes !== 'undefined') OrderTypes.load(); } catch(e) {}
+    } catch(e) {}
+  }
+
   return{
     start:start,play:play,pause:pause,step:step,reset:reset,quickSell:quickSell,
     activateDraw:activateDrawTool,
     clearDraws:clearDrawings,
     toggleAlertPanel:toggleAlertPanel,
-    addAlert:addAlert,
-    removeAlert:function(id){if(typeof AlertManager!=='undefined'){AlertManager.remove(id);renderAlertList();}},
-    toggleAlert:function(id){if(typeof AlertManager!=='undefined'){AlertManager.toggle(id);renderAlertList();}},
-    rearmAlert:function(id){if(typeof AlertManager!=='undefined'){AlertManager.rearm(id);renderAlertList();}},
-    showEquityModal:showEquityModal,
-    showHelpOverlay:showHelpOverlay,
     toggleOverlay:toggleOverlay,
     togglePatternPanel:togglePatternPanel,
-    togglePattern:togglePattern,
     toggleOverlayStock:toggleOverlayStock,
+    showEquityModal:showEquityModal,
   };
 })();
 document.addEventListener('DOMContentLoaded',function(){App.start();});
