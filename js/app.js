@@ -1482,6 +1482,17 @@ const App = (() => {
         if (typeof QuantTrading !== 'undefined') QuantTrading.setStrategyEnabled(cb.dataset.strat, cb.checked);
       });
     });
+    // Optimization method tab switching
+    $$('#quantOptTabs .quant-opt-tab').forEach(function(tab) {
+      tab.addEventListener('click', function() {
+        $$('#quantOptTabs .quant-opt-tab').forEach(function(t) { t.classList.remove('active'); });
+        tab.classList.add('active');
+        try {
+          var result = PortfolioOptimizer.optimize();
+          if (!result.error) displayAllocation(result, tab.dataset.method);
+        } catch(e) {}
+      });
+    });
     updateQuantStatus();
     // Auto-compute risk on tab open
     setTimeout(function() { displayRiskMetrics(); }, 200);
