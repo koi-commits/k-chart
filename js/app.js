@@ -156,22 +156,28 @@ const App = (() => {
     var hint = document.querySelector('.load-skip-hint');
     if (hint) hint.style.display = '';
 
-    // 视频设置：跳到"给我擦皮鞋"高能片段(0:12登场→0:20擦皮鞋→0:38验牌), 18秒循环
-    var MEME_START = 0.0;
-    var MEME_DURATION = 6.5;
-    var duration = MEME_DURATION;
-    if (loadVideoEl) {
-      loadVideoEl.currentTime = MEME_START;
-      loadVideoEl.play().catch(function(){});
-      // 在8秒片段内循环
-      loadVideoEl._memeLoop = function() {
-        if (loadVideoEl.currentTime >= MEME_START + MEME_DURATION) {
-          loadVideoEl.currentTime = MEME_START;
-        }
-      };
-      loadVideoEl.addEventListener('timeupdate', loadVideoEl._memeLoop);
+    // 双视频循环: 擦皮鞋 → 验牌 → 擦皮鞋 → ...
+    var video1 = document.getElementById('loadVideo');
+    var video2 = document.getElementById('loadVideo2');
+    var audio1 = document.getElementById('loadAudio');
+    var audio2 = document.getElementById('loadAudio2');
+    var duration = 12;
+
+    function playV1() {
+      if (video2) { video2.style.display = 'none'; video2.pause(); }
+      if (audio2) audio2.pause();
+      if (video1) { video1.style.display = ''; video1.currentTime = 0; video1.play().catch(function(){}); }
+      if (audio1) { audio1.currentTime = 0; audio1.play().catch(function(){}); }
     }
-    if (loadAudioEl) { loadAudioEl.currentTime = MEME_START; loadAudioEl.play().catch(function(){}); }
+    function playV2() {
+      if (video1) { video1.style.display = 'none'; video1.pause(); }
+      if (audio1) audio1.pause();
+      if (video2) { video2.style.display = ''; video2.currentTime = 0; video2.play().catch(function(){}); }
+      if (audio2) { audio2.currentTime = 0; audio2.play().catch(function(){}); }
+    }
+    if (video1) { video1.addEventListener('ended', playV2); }
+    if (video2) { video2.addEventListener('ended', playV1); }
+    playV1();
 
     var fill = $('#loadProgressFill');
     var text = $('#loadProgressText');
@@ -246,12 +252,11 @@ const App = (() => {
   // 停止并重置所有加载画面媒体（视频+音频）
   function stopLoadMedia() {
     if (loadTimer) { clearInterval(loadTimer); loadTimer = null; }
-    var v = document.getElementById('loadVideo');
-    if (v) { v.pause(); v.currentTime = 0; if (v._memeLoop) v.removeEventListener('timeupdate', v._memeLoop); }
-    var a = document.getElementById('loadAudio');
-    if (a) { a.pause(); a.currentTime = 0; }
-    loadVideoEl = null;
-    loadAudioEl = null;
+    var v = document.getElementById('loadVideo'); if (v) { v.pause(); v.currentTime = 0; }
+    var v2 = document.getElementById('loadVideo2'); if (v2) { v2.pause(); v2.currentTime = 0; }
+    var a = document.getElementById('loadAudio'); if (a) { a.pause(); a.currentTime = 0; }
+    var a2 = document.getElementById('loadAudio2'); if (a2) { a2.pause(); a2.currentTime = 0; }
+    loadVideoEl = null; loadAudioEl = null;
   }
 
   function init() {
