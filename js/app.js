@@ -157,8 +157,8 @@ const App = (() => {
     if (hint) hint.style.display = '';
 
     // 视频设置：跳到"给我擦皮鞋"高能片段(0:12登场→0:20擦皮鞋→0:38验牌), 18秒循环
-    var MEME_START = 12.0;
-    var MEME_DURATION = 26.0;
+    var MEME_START = 0.0;
+    var MEME_DURATION = 6.5;
     var duration = MEME_DURATION;
     if (loadVideoEl) {
       loadVideoEl.currentTime = MEME_START;
