@@ -739,7 +739,7 @@ const App = (() => {
   // ── Helpers ──
   function keyDown(e){
     if(e.ctrlKey||e.metaKey||e.altKey||e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return;
-    switch(e.code){case'Space':e.preventDefault();togglePlay();break;case'ArrowRight':e.preventDefault();step();break;case'KeyR':e.preventDefault();reset();break;case'KeyT':e.preventDefault();activateDrawTool('trend');break;case'KeyH':e.preventDefault();activateDrawTool('horizontal');break;case'Escape':e.preventDefault();activateDrawTool(null);trendPts=[];break;}
+    switch(e.code){case'Space':e.preventDefault();togglePlay();break;case'ArrowRight':e.preventDefault();step();break;case'KeyR':e.preventDefault();reset();break;case'KeyT':e.preventDefault();activateDrawTool('trend');break;case'KeyH':e.preventDefault();activateDrawTool('horizontal');break;case'KeyF':e.preventDefault();activateDrawTool('fibonacci');break;case'KeyB':e.preventDefault();activateDrawTool('rectangle');break;case'KeyX':e.preventDefault();activateDrawTool('text');break;case'KeyM':e.preventDefault();activateDrawTool('measure');break;case'F11':e.preventDefault();if(document.fullscreenElement){document.exitFullscreen();}else{document.documentElement.requestFullscreen();}break;case'Escape':e.preventDefault();activateDrawTool(null);trendPts=[];break;}
     var km={Digit1:'1m',Digit2:'5m',Digit3:'15m',Digit4:'1h',Digit5:'1d',Digit6:'1w'};
     if(km[e.code]){e.preventDefault();var p=km[e.code];$$('.period-selector button').forEach(function(b){b.classList.toggle('active',b.dataset.period===p);});sim.switchPeriod(p);ChartManager.updateData(sim.getCandles());txt('#candleCount','K线: '+sim.getCandles().length);}
   }

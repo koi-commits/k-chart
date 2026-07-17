@@ -9,7 +9,8 @@ function createWindow() {
     height: 800,
     minWidth: 900,
     minHeight: 650,
-    icon: path.join(__dirname, 'icons', 'icon-512.png'),
+    fullscreen: true,
+    icon: path.join(__dirname, 'icons', 'icon-256.png'),
     title: 'K-line Simulator',
     webPreferences: {
       nodeIntegration: false,
