@@ -94,7 +94,7 @@ const ChartManager = (() => {
 
   function calcMACD(cl){var e12=ema(cl,12),e26=ema(cl,26),ml=[];for(var i=0;i<cl.length;i++)ml.push(e12[i]-e26[i]);var sig=ema(ml,9),r=[];for(var i=0;i<cl.length;i++)r.push({macd:+ml[i].toFixed(4),signal:+sig[i].toFixed(4),histogram:+(ml[i]-sig[i]).toFixed(4)});return r;}
 
-  function updateData(candles) {
+  function updateData(candles, visibleBars) {
     if (!candles||!candles.length||!candleSeries) return;
     var ohlc = candles.map(function(c){return{time:Math.floor(c.time/1000),open:c.open,high:c.high,low:c.low,close:c.close};});
     var cl = ohlc.map(function(o){return o.close;});
@@ -110,7 +110,7 @@ const ChartManager = (() => {
     boll.forEach(function(b,i){if(b.u!==null){bu.push({time:ohlc[i].time,value:+b.u.toFixed(2)});bm.push({time:ohlc[i].time,value:+b.m.toFixed(2)});bl.push({time:ohlc[i].time,value:+b.l.toFixed(2)});}});
     bollU.setData(bu);bollM.setData(bm);bollL.setData(bl);
 
-    volSeries.setData(candles.map(function(c){var t=Math.floor(c.time/1000);var prev=candles[candles.length-1];return{time:t,value:c.volume,color:c.close>=(prev?prev.close:c.open)?clr().upBg:clr().dnBg};}));
+    volSeries.setData(candles.map(function(c,i){var t=Math.floor(c.time/1000);var prev=i>0?candles[i-1]:null;return{time:t,value:c.volume,color:c.close>=(prev?prev.close:c.open)?clr().upBg:clr().dnBg};}));
 
     var macdAll=calcMACD(cl);
     macdHist.setData(macdAll.map(function(d,i){return{time:ohlc[i].time,value:d.histogram,color:d.histogram>=0?clr().macdU:clr().macdD};}));
@@ -126,7 +126,8 @@ const ChartManager = (() => {
     kdjK.setData(kk);kdjD.setData(kd_);kdjJ.setData(kj);
     applyIndicatorVis();
 
-    mainChart.timeScale().fitContent();
+    if (visibleBars && candles.length > visibleBars) mainChart.timeScale().setVisibleLogicalRange({from:candles.length-visibleBars,to:candles.length+1});
+    else mainChart.timeScale().fitContent();
   }
 
   function applyIndicatorVis() {
