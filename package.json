@@ -21,7 +21,6 @@
       "js/**/*",
       "icons/**/*",
       "lib/**/*",
-      "assets/**/*",
       "node_modules/**/*"
     ],
     "win": {

@@ -182,9 +182,6 @@ const App = (() => {
     bindStockBtns();
     val('#tradePrice', sim.getPrice().toFixed(2));
     bindEvents();
-    initSentiment();
-    initVolatility();
-    initPatterns();
     // 成就系统
     if (typeof AchievementEngine !== 'undefined') {
       AchievementEngine.init();
@@ -521,7 +518,7 @@ const App = (() => {
           }
         }
       } catch(e) {}
-      var triggeredAlerts = AlertManager.check(alertData);
+      var triggeredAlerts = (typeof AlertManager !== 'undefined') ? AlertManager.check(alertData) : [];
       triggeredAlerts.forEach(function(ta){
         showToast('🔔 ' + ta.message, '');
         renderAlertList();
@@ -883,81 +880,6 @@ const App = (() => {
   function isDark(){return document.documentElement.dataset.theme!=='light';}
   function fmtVol(v){if(v>=1e8)return(v/1e8).toFixed(2)+'亿';if(v>=1e4)return(v/1e4).toFixed(1)+'万';return String(v);}
 
-  // ── 市场情绪集成 ──
-  function initSentiment() {
-    var badge = document.getElementById('sentimentBadge');
-    if (!badge) return;
-
-    // 情绪数据回调：应用到所有股票
-    MarketSentiment.onUpdate(function(data) {
-      var mult = data.volatilityMultiplier;
-      // 应用到所有活跃的模拟器实例
-      var symbols = Object.keys(Simulator.STOCKS);
-      symbols.forEach(function(sym) {
-        try { Simulator.get(sym).setSentimentMultiplier(mult); } catch(e) {}
-      });
-
-      // 更新UI
-      updateSentimentBadge(data);
-    });
-
-    // 更新徽章
-    function updateSentimentBadge(data) {
-      if (!badge) return;
-      var s = data.score;
-      var cls, label;
-      if (!data.trading) {
-        cls = 'offline'; label = '休市';
-      } else if (s >= 75) {
-        cls = 'hot'; label = '🔥 狂热 ' + s;
-      } else if (s >= 58) {
-        cls = 'warm'; label = '📈 偏热 ' + s;
-      } else if (s >= 42) {
-        cls = 'calm'; label = '⚖ 中性 ' + s;
-      } else if (s >= 25) {
-        cls = 'cold'; label = '📉 偏冷 ' + s;
-      } else {
-        cls = 'panic'; label = '❄ 恐慌 ' + s;
-      }
-      badge.textContent = label;
-      badge.className = 'sentiment-badge ' + cls;
-    }
-
-    // 初始状态立即显示
-    updateSentimentBadge({ score: 50, trading: false, cache: { upCount: 0, ztCount: 0 } });
-
-    // 尝试连接真实市场数据
-    if (typeof window.marketAPI !== 'undefined') {
-      MarketSentiment.start(60); // 每60秒刷新
-
-      // 网络不可用时的 fallback: 用本地多股票走势模拟情绪
-      MarketSentiment.onUpdate(function(data) {
-        if (!data.trading || (data.cache.upCount === 0 && data.cache.ztCount === 0)) {
-          // 非交易时段或无网络数据，用本地股票走势计算
-          var symbols = Object.keys(Simulator.STOCKS);
-          var localMult = MarketSentiment.computeFromLocal(symbols);
-          if (localMult !== data.volatilityMultiplier) {
-            symbols.forEach(function(sym) {
-              try { Simulator.get(sym).setSentimentMultiplier(localMult); } catch(e) {}
-            });
-          }
-        }
-      });
-    } else {
-      // preload 不可用（开发模式无 preload？），用本地数据
-      badge.textContent = '⚖ 本地';
-      badge.className = 'sentiment-badge calm';
-      // 定期用本地多股票走势计算情绪
-      setInterval(function() {
-        var symbols = Object.keys(Simulator.STOCKS);
-        var localMult = MarketSentiment.computeFromLocal(symbols);
-        symbols.forEach(function(sym) {
-          try { Simulator.get(sym).setSentimentMultiplier(localMult); } catch(e) {}
-        });
-      }, 30000);
-    }
-  }
-
   function start(){
     if(typeof LightweightCharts==='undefined'){setTimeout(start,100);return;}
     // 显示启动画面，用户选择存档后调用 hideSplash() → init()
@@ -971,72 +893,6 @@ const App = (() => {
     }
   }
 
-  // ── 波动率自动更新 ──
-  function initVolatility() {
-    var badge = document.getElementById('volatilityBadge');
-    if (!badge) return;
-
-    // 初始状态
-    badge.textContent = '📡 检查中';
-    badge.className = 'volatility-badge fetching';
-
-    // 点击手动刷新
-    badge.addEventListener('click', function() {
-      if (badge.className.indexOf('fetching') >= 0) return; // 正在更新中
-      badge.textContent = '📡 更新中';
-      badge.className = 'volatility-badge fetching';
-      VolatilityUpdater.forceRefresh(function(result) {
-        updateVolatilityBadge(result);
-        // 重建当前股票的模拟器实例以应用新波动率
-        rebuildCurrentSim();
-      });
-    });
-
-    // 异步初始化（先应用缓存，必要时联网更新）
-    VolatilityUpdater.init(function(result) {
-      updateVolatilityBadge(result);
-      // 如果波动率有更新，重建模拟器
-      if (result && result.success > 0) {
-        rebuildCurrentSim();
-      }
-    });
-  }
-
-  function updateVolatilityBadge(result) {
-    var badge = document.getElementById('volatilityBadge');
-    if (!badge) return;
-
-    var cacheAge = VolatilityUpdater.getCacheAge();
-    var isExpired = VolatilityUpdater.isCacheExpired();
-
-    if (result && result.success > 0) {
-      // 网络更新成功 → 绿色"实时"
-      badge.textContent = '📡 实时 ' + result.success + '/' + result.total;
-      badge.className = 'volatility-badge live';
-      badge.title = '波动率数据已更新\n' + result.updatedAt + '\n点击可手动刷新';
-    } else if (!isExpired && cacheAge < Infinity) {
-      // 缓存有效 → 橙色"缓存"
-      var hours = Math.floor(cacheAge / 3600000);
-      badge.textContent = '📡 缓存 ' + (hours > 0 ? hours + 'h前' : '刚才');
-      badge.className = 'volatility-badge cached';
-      badge.title = '使用缓存波动率数据 (' + VolatilityUpdater.getLastUpdateStr() + ')\n点击手动刷新';
-    } else {
-      // 无缓存 + 网络失败 → 红色"离线"
-      badge.textContent = '📡 离线';
-      badge.className = 'volatility-badge error';
-      badge.title = '无法获取波动率数据，使用内置默认值\n点击重试';
-    }
-  }
-
-  function rebuildCurrentSim() {
-    // 波动率已自动从 STOCKS 读取，无需重建实例
-    // 仅刷新股票列表显示
-    initWatchlistUI();
-    renderStockList();
-  }
-
-  // ── 策略回测面板 ──
-  var btInitialized = false;
   function initBacktestPanel() {
     if (btInitialized) return;
     btInitialized = true;
