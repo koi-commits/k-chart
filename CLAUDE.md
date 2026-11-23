@@ -26,12 +26,12 @@ npm run build                  # 构建 Windows 便携版（国内网络先设�
 ## 游戏规则
 
 - 本金 ¥100,000；共 20 回合，**每回合 = 一周 = 5 个交易日**。
-- 回合结束时总资产 < ¥30,000 判负；第 20 回合结束时结算总资产、收益率、最大回撤（按每日总资产计算）。
-- **评分与评级（取代原来的三条硬性胜利条件）**：总分 = 4 个季度分 + 终局分 − 回撤扣分；按总分评 S/A/B/C/D，**B 及以上过关**。所有权重、上下限、阈值、等级线都在 `config.scoring`，逻辑在 `js/game/scoring.js`（纯数字函数）。
+- 回合结束时总资产 < ¥30,000 判负；第 20 回合结束时结算总资产、收益率、超额回撤（参与评分）与账户自身最大回撤（按每日总资产，仅供参考）。
+- **评分与评级（取代原来的三条硬性胜利条件）**：总分 = 4 个季度分 + 终局分 − 回撤扣分（总分有下限 `totalMin`）；按总分评 S/A/B/C/D，**B 及以上过关**。所有权重、上下限、阈值、等级线都在 `config.scoring`，逻辑在 `js/game/scoring.js`（纯数字函数）。
   - 超额收益 = 玩家收益率 − 等权基准收益率（百分点）。基准 = 第 1 回合开盘价把本金平均买入 4 家、持有到结束、不计费用。
   - **季度分**：每季度超额 > 0 得基础分 `beatBase`，超额每个百分点再 ±`perPoint`；单季度限制在 `[min, max]`。
   - **终局分**：全局超额 × `perPoint`，限制在 `[min, max]`。
-  - **回撤扣分**：最大回撤超过 `threshold` 的部分每个百分点扣 `perPoint` 分，**不设硬性上限**（连续扣分）。
+  - **回撤扣分（超额回撤）**：用**每周收盘**时「玩家总资产/本金 ÷ 等权基准净值」这条相对净值曲线，取它从历史最高点回落的最大幅度（`GameState.excessDrawdown`）。超过 `threshold` 的部分每个百分点扣 `perPoint` 分，**扣分封顶 `maxPenalty`**，总分下限 `totalMin`。只扣跑输基准的部分：大盘下跌时少跌不扣分；盘中回落不计。账户自身的每日最大回撤只作参考（`result.maxDrawdown`），不参与评分。界面里扣分一律用红色（`.pen`），加分用金色（`.sp`），不用红涨绿跌的颜色表示分数。
   - 中途判负（总资产 < ¥30,000）：一律评 D。
   - 界面**不提示"已无法获胜/过关"**；顶部只显示当前总分（若现在结束）、预估等级、本季度目前得分、距下一等级还差多少分。"提前判死"只是平衡统计指标（`GameSummary.outlook`），不给玩家看。
 - **季度**：20 回合 = 4 个季度 × 5 回合，季度末弹出成绩单（得分构成）。季度收益 = 季度末总资产 / 上季度末总资产 − 1（第 1 季度从本金起算）；基准用等权持有指数同样分季度计算。公式在 `game-state.js` 的 `quarterResults`（按"已过交易日数 d"，`equity[d]` 与基准指数对齐）；各季度收益复利后等于总收益（有测试）。
@@ -58,6 +58,7 @@ npm run build                  # 构建 Windows 便携版（国内网络先设�
 │   │   ├── research.js    # 研究点 → V 的估计
 │   │   ├── trading.js     # 费率/冲击/T+1/涨跌停，纯函数
 │   │   ├── scoring.js     # 评分与评级：季度分/终局分/回撤扣分/等级/提前判死上界（纯数字，读 config.scoring）
+│   │   ├── advice.js      # 结算页预设文案（最大丢分项建议、反事实句式），纯数据
 │   │   ├── game-state.js  # newGame() 与 advanceTurn(state, actions) -> newState
 │   │   ├── record.js      # 试玩记录（行动/耗时/结果）与 replay(record) 重放
 │   │   └── summary.js     # 玩家可见信息的纯函数：progress（目标进度）、weekSummary（回合小结）、historyOf（历史回看）
@@ -80,7 +81,7 @@ npm run build                  # 构建 Windows 便携版（国内网络先设�
 └── icons/ dist/
 ```
 
-脚本加载顺序（index.html）：`lightweight-charts` → `game/config` → `rng` → `companies` → `events` → `scoring` → `market` → `research` → `trading` → `game-state` → `record` → `summary` → `chart` → `ui/tips` → `ui/save` → `ui/view` → `ui/replay` → `ui/review` → `ui/weekly` → `ui/history` → `ui/rules` → `app`。所有模块是 UMD/IIFE，通过全局变量互相引用（`GameConfig`、`GameRng`、`GameState`、`ChartManager`、`App` 等）。
+脚本加载顺序（index.html）：`lightweight-charts` → `game/config` → `rng` → `companies` → `events` → `scoring` → `advice` → `market` → `research` → `trading` → `game-state` → `record` → `summary` → `chart` → `ui/tips` → `ui/save` → `ui/view` → `ui/replay` → `ui/review` → `ui/weekly` → `ui/history` → `ui/rules` → `app`。所有模块是 UMD/IIFE，通过全局变量互相引用（`GameConfig`、`GameRng`、`GameState`、`ChartManager`、`App` 等）。
 
 ### 遗留文件（仍在仓库，但 index.html 不加载）
 
@@ -104,17 +105,17 @@ npm run build                  # 构建 Windows 便携版（国内网络先设�
 
 ### 试玩记录（record.js / app.js）
 - 记录 = 种子 + 每回合 `{research, orders}`（与 `advanceTurn` 的 actions 同格式）+ 耗时 + 结果；`Record.replay(rec)` 重放得到与实际完全一致的结局（有测试覆盖，改规则代码时别破坏这一点：不要在 advanceTurn 里引入不可重放的状态）。
-- 记录里有 `gameVersion`（来自 `config.gameVersion`，当前 `v0.3-playtest`，也显示在界面右下角）。**发新一批试玩版本前要改这个值**，这样收回来的数据能区分版本。
+- 记录里有 `gameVersion`（来自 `config.gameVersion`，当前 `v0.4-playtest`，也显示在界面右下角）。**发新一批试玩版本前要改这个值**，这样收回来的数据能区分版本。
 - 耗时由 `app.js` 测量（回合界面停留的累计毫秒，刷新后继续累计），传给 `commitTurn`。存档格式为 `{state, record}`；`state.version` 不符的旧存档直接丢弃。
 
 ### 记录分析（scripts/analyze-records.js）
 - 读取一个文件夹里的所有导出 JSON（递归），跳过坏文件并说明原因。**记录格式变了要同步这个脚本和 `tests/analyze-records.test.js`**。估值误差通过 `Record.replay` 重放得到研究日志里的 `trueV`，所以只有 `gameVersion` 与当前代码一致、且重放结果与记录一致的局才有误差数据；改了会影响价格路径的规则（事件抽取、价格模型、引擎）后，旧版本记录就只能看分数构成。
 
 ### 即时反馈（summary.js / weekly.js / history.js）
-- 顶部评分条：当前总分、预估等级、本季度目前得分、距下一等级还差多少分（等级尺 D|C|B|A|S 带当前位置），下面是收益率 vs 基准、最大回撤（超阈值开始扣分）、四个季度的得分。全部由 `GameSummary.progress` 计算，数值读 config。季度成绩单与结算页展示分数构成明细。
+- 顶部评分条以**本季度**为主：本季度目前得分、本季度目标（超额>0 得基础分、超额达多少点拿满）、达到上限/下限时显示“本季度已封顶/已触底”；总分、预估等级（开局显示“—”）和等级尺放在次要位置；距下一等级的差距超过剩余回合理论可得分的一半时不再显示“还差 X 分”（`progress().nextTooFar`）。下面是收益率 vs 基准、超额回撤（超阈值开始扣分）、四个季度的得分。季度成绩单同时显示本季度绝对收益率、基准收益率、两者之差和一句解释（`GameSummary.quarterNote`）。结算页有“改进线索”：最大丢分项、1–2 个反事实对照（`GameScoring.diagnose`，数值由本局数据重算）和对应建议（文案在 `js/game/advice.js` 预设表，逻辑只返回 key）。全部由 `GameSummary.progress` 计算，数值读 config。季度成绩单与结算页展示分数构成明细。
 - 回合小结、回合历史只能使用玩家本来能看到的信息：`candles`、`tradeLog`、`researchLog` 的 estimate/sigma、`eventLog` 的 headline。**禁止**读取 `vPath`、`trueV`、事件的 `kind`/`effects`；测试里有"小结不含真实价值"的检查。
 - 估值一律显示为"估值 ¥X + 区间条（约 68% 把握在此区间内）"，区间 = 估值·e^∓σ；不再写"±5%"（σ 是标准差，不是硬边界）。公司列表里"最近一日"（最后一个交易日涨跌）与"近一周"（5 日累计，与小结"本周累计涨跌"同口径）分开标注。
-- 回合小结带"本周回撤"：周内总资产相对历史最高点最深回落（回撤按每日总资产算，周中跌得更深也计入，所以赚钱的一周最大回撤也可能变大）。估值只剩最后 1 回合有效时橙色提醒；结算页的"研究估值"列和**研究当时**的真实价值比较（不是和期末价值比），并标注是否已过期。
+- 回合小结带超额回撤：周末相对基准的净值离历史最高点的回落，以及截至周末的最大超额回撤（按周收盘，不计盘中）。估值只剩最后 1 回合有效时橙色提醒；结算页的"研究估值"列和**研究当时**的真实价值比较（不是和期末价值比），并标注是否已过期。
 - 操作失败/无效操作（资金不足、可卖不足、研究点不足…）一律用 `GameView.showToast(where, msg)`：红色提示贴在对应面板的操作按钮下面，面板轻微抖动，约 4 秒后自动消失；面板重绘时仍在有效期内会保持显示。**不要**再往右下角的成交记录区写错误。
 - 图表标题：主图均线图例、成交量、MACD、RSI（TradingView 水印是 lightweight-charts 的署名要求，保留）。
 - 主图买卖标记与成本线：`ChartManager.setTradeOverlay`，只用初始化时创建的 candleSeries。
@@ -151,4 +152,4 @@ npm run build                  # 构建 Windows 便携版（国内网络先设�
 
 ## 修改参数的流程
 
-评分参数（`config.scoring`）与等级线共同决定各 bot 的过关比例，必须一起调。省时做法：先跑一遍完整模拟，保存每局的 `{各季度超额, 全局超额, 最大回撤, 第 10 回合时的季度超额与回撤}`，再离线用同一套公式扫参数网格（等级线按研究 bot 总分分布取分位：B ≈ 中位数附近、A ≈ 前 20%、S ≈ 前 5%），最后用真实 `simulate.js` 复验。**改了事件抽取/价格模型/引擎后，价格路径会变，必须重新定标。**所有数值在 `js/game/config.js`（公司固定属性在 `companies.js`，事件数值与新闻标题在 `events.js` 的 `CARDS`）。改完运行 `npm test` 和 `node scripts/simulate.js`，确认验收仍全部通过，并在提交信息里写明改了什么、为什么。调参只改 config；不要为了过验收去改规则代码。
+评分参数（`config.scoring`）与等级线共同决定各 bot 的过关比例，必须一起调。省时做法：先跑一遍完整模拟，保存每局的 `{各季度超额, 全局超额, 超额回撤, 第 10 回合时的季度超额与超额回撤}`，再离线用同一套公式扫参数网格（等级线按研究 bot 总分分布取分位：B ≈ 中位数附近、A ≈ 前 20%、S ≈ 前 5%），最后用真实 `simulate.js` 复验。**改了事件抽取/价格模型/引擎后，价格路径会变，必须重新定标。**所有数值在 `js/game/config.js`（公司固定属性在 `companies.js`，事件数值与新闻标题在 `events.js` 的 `CARDS`）。改完运行 `npm test` 和 `node scripts/simulate.js`，确认验收仍全部通过，并在提交信息里写明改了什么、为什么。调参只改 config；不要为了过验收去改规则代码。
