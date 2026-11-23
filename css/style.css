@@ -17,8 +17,10 @@ b { font-family: var(--mono); font-weight: 600; }
 #topbar { background: var(--panel); border-bottom: 1px solid var(--line); padding: 8px 14px; }
 #topbar .stats { display: flex; gap: 22px; align-items: center; }
 #topbar .turn { font-size: 15px; font-weight: 700; color: var(--accent); }
-.link-btn { margin-left: auto; background: none; border: none; color: var(--muted); cursor: pointer; font: inherit; }
+.top-actions { margin-left: auto; display: flex; gap: 14px; }
+.link-btn { background: none; border: none; color: var(--muted); cursor: pointer; font: inherit; }
 .link-btn:hover { color: var(--text); }
+.link-btn.danger:hover { color: var(--up); }
 .news { margin-top: 6px; min-height: 20px; display: flex; flex-wrap: wrap; gap: 4px 24px; }
 .news .item::before { content: "📰 "; }
 

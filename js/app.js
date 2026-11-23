@@ -17,7 +17,14 @@ const App = (() => {
     segStart = now;
   }
 
-  function persist() { touchTime(); GameSave.save(state, record); }
+  function persist() { if (!state || !record) return; touchTime(); GameSave.save(state, record); }
+
+  /** 退出游戏：先存档，再关闭（Electron 里走 IPC，浏览器里 window.close） */
+  function quitGame() {
+    persist();
+    if (window.gameAPI && window.gameAPI.quit) window.gameAPI.quit();
+    else window.close();
+  }
 
   function newGame() {
     state = GameState.newGame(crypto.getRandomValues(new Uint32Array(1))[0]); // 种子在 UI 层生成
@@ -147,6 +154,8 @@ const App = (() => {
     document.addEventListener('click', onClick);
     document.getElementById('btnEndTurn').addEventListener('click', endTurn);
     document.getElementById('btnRestart').addEventListener('click', restart);
+    document.getElementById('btnQuit').addEventListener('click', quitGame);
+    window.addEventListener('pagehide', persist);  // 点窗口右上角关闭时也存一次（保存回合耗时）
     window.addEventListener('resize', () => ChartManager.resize());
 
     const saved = GameSave.load();     // 有存档就自动继续（没有手动读档）
