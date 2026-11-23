@@ -14,6 +14,7 @@ const App = (() => {
     ui.selected = Object.keys(state.companies)[0];
     GameSave.save(state);
     GameView.hideSettlement();
+    GameReview.close();
     render();
   }
 
@@ -102,6 +103,8 @@ const App = (() => {
       case 'fill': fill(d.k); break;
       case 'cancel': cancel(parseInt(d.i, 10)); break;
       case 'restart-confirmed': newGame(); break;
+      case 'review-open': GameReview.render(state); break;
+      case 'review-close': GameReview.close(); break;
     }
   }
 

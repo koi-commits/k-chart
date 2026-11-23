@@ -30,6 +30,8 @@
     next.rng.research = rng.state();
     next.pointsLeft -= points;
     next.research[id] = { estimate: Math.round(estimate * 100) / 100, turn: next.turn, points, sigma };
+    // 研究史（复盘用）：trueV 是研究当时的真实价值，游戏结束前不得展示
+    next.researchLog.push({ turn: next.turn, id, points, estimate: next.research[id].estimate, sigma, trueV: Math.round(next.companies[id].V * 100) / 100 });
     return { state: next };
   }
 

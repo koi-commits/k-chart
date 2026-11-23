@@ -12,7 +12,7 @@ const GameSave = (() => {
       const raw = localStorage.getItem(KEY);
       if (!raw) return null;
       const s = JSON.parse(raw);
-      return s && s.version === 1 && s.companies && s.candles ? s : null;
+      return s && s.version === 2 && s.companies && s.candles ? s : null;
     } catch (e) { return null; }
   }
 

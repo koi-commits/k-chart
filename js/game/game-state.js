@@ -29,7 +29,7 @@
       research: GameRng.create(GameRng.deriveState(seed, 3))
     };
     const setup = GameRng.create(GameRng.deriveState(seed, 4));   // 公司参数专用流，不干扰价格路径
-    const companies = {}, candles = {}, carry = {};
+    const companies = {}, candles = {}, carry = {}, vPath = {};
     for (const def of GameCompanies.generate(setup)) {
       const V = def.v0 * Math.exp(GameConfig.startValueJitter * setup.normal());   // 真实价值围绕 v0 抖动
       const s = GameConfig.startSentimentStd * setup.normal();                     // 开局价格与真实价值的偏离
@@ -37,7 +37,7 @@
       delete companies[def.id].v0;
       const p0 = Math.round(V * Math.exp(s) * 100) / 100;
       carry[def.id] = { prevClose: p0, prevTarget: p0 };
-      candles[def.id] = [];
+      candles[def.id] = []; vPath[def.id] = [];
     }
     // 预热：不发生事件
     for (let w = -GameConfig.warmupWeeks; w < 0; w++) {
@@ -45,13 +45,15 @@
         const r = GameMarket.simulateWeek(companies[id], carry[id], w, null, rng.market);
         companies[id].V = r.V; companies[id].s = r.s;
         carry[id] = { prevClose: r.prevClose, prevTarget: r.prevTarget };
-        candles[id].push(...r.candles);
+        candles[id].push(...r.candles); vPath[id].push(...r.vs);
       }
     }
     return {
-      version: 1, seed, turn: 1, status: 'playing', endReason: null,
+      version: 2, seed, turn: 1, status: 'playing', endReason: null,
       cash: GameConfig.initialCash, positions: {},
       companies, candles, carry,
+      vPath,                       // 真实价值 V 的逐日路径（与 candles 对齐；仅复盘使用）
+      tradeLog: [], researchLog: [],
       research: {}, pointsLeft: GameConfig.research.pointsPerTurn,
       news: [{ cardId: null, headline: '新赛季开始，市场暂无重大消息。' }],
       eventLog: [], lastWeek: null,
@@ -122,7 +124,7 @@
       s.companies[id].V = r.V; s.companies[id].s = r.s;
       const prevClose = s.carry[id].prevClose;
       s.carry[id] = { prevClose: r.prevClose, prevTarget: r.prevTarget };
-      weekCandles[id] = { prevClose, candles: r.candles };
+      weekCandles[id] = { prevClose, candles: r.candles, vs: r.vs };
     }
     s.rng.market = mRng.state(); s.rng.events = eRng.state();
 
@@ -153,13 +155,14 @@
       for (const id of Object.keys(s.positions)) v += s.positions[id].shares * weekCandles[id].candles[d].close;
       s.equity.push({ turn: s.turn, day: baseDay + d, assets: Math.round(v * 100) / 100 });
     }
-    for (const id of ids) s.candles[id].push(...weekCandles[id].candles);
+    for (const id of ids) { s.candles[id].push(...weekCandles[id].candles); s.vPath[id].push(...weekCandles[id].vs); }
+    for (const t of trades) s.tradeLog.push(Object.assign({ turn: s.turn, day: baseDay }, t));
 
     // 4. 新闻与记录
     s.lastWeek = { turn: s.turn, trades, failed, events: events.map((e) => e.headline) };
     s.news = events.length ? events.map((e) => ({ cardId: e.cardId, headline: e.headline }))
                            : [{ cardId: null, headline: '本周市场平静，没有重大消息。' }];
-    for (const e of events) s.eventLog.push({ turn: s.turn, cardId: e.cardId, kind: e.kind, targetId: e.targetId, effects: e.effects });
+    for (const e of events) s.eventLog.push({ turn: s.turn, cardId: e.cardId, kind: e.kind, headline: e.headline, targetId: e.targetId, effects: e.effects });
 
     // 5. 推进回合并判定结束
     const assets = s.equity[s.equity.length - 1].assets;

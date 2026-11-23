@@ -36,7 +36,7 @@
     let V = co.V, s = co.s;
     let prevClose = carry.prevClose, prevTarget = carry.prevTarget;
     const sigmaV = M.valueDiffusion * (1 + co.debt);
-    const candles = [];
+    const candles = [], vs = [];
 
     for (let d = 0; d < GameConfig.daysPerTurn; d++) {
       if (d === 0 && effect) { V *= Math.exp(effect.vLog); s += effect.sShift; }
@@ -60,9 +60,10 @@
       const volume = Math.floor(co.adv * rng.uniform(M.volumeJitter[0], M.volumeJitter[1]) * (1 + ret * M.volumeReturnGain));
 
       candles.push({ time: dayTime(weekIndex, d), open, high, low, close, volume });
+      vs.push(Math.round(V * 100) / 100);
       prevClose = close; prevTarget = target;
     }
-    return { candles, V, s, prevClose, prevTarget };
+    return { candles, vs, V, s, prevClose, prevTarget };
   }
 
   return { simulateWeek, limitPrices, sentimentStd, dayTime };

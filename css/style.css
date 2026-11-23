@@ -78,3 +78,36 @@ button.small { padding: 1px 7px; font-size: 11px; }
 .card th:first-child, .card td:first-child { text-align: left; }
 .card th { color: var(--muted); font-weight: 400; }
 .card .actions { text-align: right; }
+
+/* 复盘页 */
+.overlay.review { align-items: flex-start; overflow-y: auto; z-index: 11; background: rgba(0,0,0,.94); }
+.rv-wrap { width: 1000px; max-width: 96vw; padding: 20px 0 60px; }
+.rv-head { display: flex; justify-content: space-between; align-items: center; }
+.rv-head h2 { margin: 0; }
+.rv-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 10px 0 18px; color: var(--text); font-size: 12px; }
+.lg { display: inline-block; width: 18px; height: 0; border-top: 3px solid; vertical-align: middle; margin-right: 4px; }
+.lg.v { border-color: #4fc3f7; } .lg.up { border-color: var(--up); } .lg.est { border: 2px solid var(--accent); width: 8px; height: 8px; transform: rotate(45deg); }
+.tag { display: inline-block; padding: 0 6px; border-radius: 8px; font-size: 11px; color: #111; }
+.tag.f { background: var(--warn); } .tag.s { background: #b388ff; }
+.rv-co { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; margin-bottom: 18px; }
+.rv-co h3 { margin: 0 0 6px; display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+.rv-params { font-size: 12px; font-weight: 400; } .rv-pnl { margin-left: auto; font-family: var(--mono); }
+.rv-svg { width: 100%; height: auto; background: var(--bg); border-radius: 4px; }
+.rv-svg text { fill: var(--muted); font-size: 10px; font-family: var(--mono); }
+.rv-warm { fill: rgba(255,255,255,.035); } .rv-grid { stroke: #1d1d1d; } .rv-tick { stroke: #1f1f1f; stroke-dasharray: 1 3; }
+.rv-up { stroke: var(--up); fill: none; } .rv-dn { stroke: var(--down); fill: none; }
+.rv-up.rv-body { fill: var(--up); } .rv-dn.rv-body { fill: var(--down); }
+.rv-v { fill: none; stroke: #4fc3f7; stroke-width: 2; }
+.rv-ev { stroke-dasharray: 3 3; stroke-width: 1; } .rv-ev.f { stroke: var(--warn); } .rv-ev.s { stroke: #b388ff; }
+.rv-evm circle { stroke: none; } .rv-evm.f circle { fill: var(--warn); } .rv-evm.s circle { fill: #b388ff; }
+.rv-svg .rv-evm text { fill: #111; text-anchor: middle; font-size: 10px; font-weight: 700; }
+.rv-est path { fill: none; stroke: var(--accent); stroke-width: 2; }
+.rv-tr.buy path { fill: #ff8a80; stroke: #fff; stroke-width: .8; } .rv-tr.sell path { fill: #81c784; stroke: #fff; stroke-width: .8; }
+.rv-note { color: var(--muted); margin: 8px 0 10px; }
+.rv-tables { display: grid; grid-template-columns: 1.5fr 1fr; gap: 18px; }
+.rv-tables h4 { margin: 8px 0 4px; color: var(--accent); font-size: 12px; }
+.rv-tables table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 8px; }
+.rv-tables th, .rv-tables td { padding: 3px 6px; border-bottom: 1px solid var(--line); text-align: right; }
+.rv-tables th.l, .rv-tables td.l { text-align: left; } .rv-tables th { color: var(--muted); font-weight: 400; }
+.rv-tables .warn { color: var(--warn); }
+.rv-tables td, .rv-tables th { white-space: nowrap; } .rv-tables td.l { white-space: normal; }
