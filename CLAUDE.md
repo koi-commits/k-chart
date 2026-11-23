@@ -101,7 +101,7 @@ npm run build                  # 构建 Windows 便携版（国内网络先设�
 
 ### 试玩记录（record.js / app.js）
 - 记录 = 种子 + 每回合 `{research, orders}`（与 `advanceTurn` 的 actions 同格式）+ 耗时 + 结果；`Record.replay(rec)` 重放得到与实际完全一致的结局（有测试覆盖，改规则代码时别破坏这一点：不要在 advanceTurn 里引入不可重放的状态）。
-- 记录里有 `gameVersion`（来自 `config.gameVersion`，当前 `v0.1-playtest`，也显示在界面右下角）。**发新一批试玩版本前要改这个值**，这样收回来的数据能区分版本。
+- 记录里有 `gameVersion`（来自 `config.gameVersion`，当前 `v0.3-playtest`，也显示在界面右下角）。**发新一批试玩版本前要改这个值**，这样收回来的数据能区分版本。
 - 耗时由 `app.js` 测量（回合界面停留的累计毫秒，刷新后继续累计），传给 `commitTurn`。存档格式为 `{state, record}`；`state.version` 不符的旧存档直接丢弃。
 
 ### 即时反馈（summary.js / weekly.js / history.js）

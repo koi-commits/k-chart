@@ -7,7 +7,7 @@
   else root.GameConfig = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
   return {
-    gameVersion: 'v0.2-playtest', // 试玩版本号：显示在界面角落，并写入导出的记录
+    gameVersion: 'v0.3-playtest', // 试玩版本号：显示在界面角落，并写入导出的记录
 
     // ── 规则 ──
     initialCash: 100000,       // 本金
