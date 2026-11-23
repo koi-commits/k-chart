@@ -116,15 +116,23 @@ const App = (() => {
   }
 
   /** 导出本局记录为 JSON 文件（种子、每回合行动与耗时、最终结果） */
-  function exportRecord() {
+  async function exportRecord() {
     const out = Object.assign({}, record, { exportedAt: new Date().toISOString(), app: 'kline-game-v0' });
-    const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
+    const text = JSON.stringify(out, null, 2);
     const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `kline-game-seed${record.seed}-${stamp}.json`;
+    const filename = `kline-game-seed${record.seed}-${stamp}.json`;
+    const msg = (t) => { const el = document.getElementById('exportMsg'); if (el) el.textContent = t; };
+    if (window.gameAPI && window.gameAPI.saveRecord) {          // Electron：系统保存对话框
+      const r = await window.gameAPI.saveRecord(filename, text);
+      msg(r.ok ? '✔ 已保存到：' + r.path : r.canceled ? '已取消导出' : '✘ 保存失败：' + r.error);
+      return;
+    }
+    const a = document.createElement('a');                        // 浏览器：直接下载
+    a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    a.download = filename;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    msg('已开始下载 ' + filename);
   }
 
   function restart() {

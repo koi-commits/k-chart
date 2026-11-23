@@ -1,5 +1,6 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
+const fs = require('fs');
 
 let mainWindow;
 
@@ -36,6 +37,28 @@ function createWindow() {
 
   mainWindow.loadFile('index.html');
 }
+
+// 导出试玩记录：弹出系统保存对话框（默认目录="下载"文件夹，默认文件名由界面给出），用户选定后写入文件。
+// 只会写入用户在对话框里亲自选定的路径；渲染进程不能指定路径。
+ipcMain.handle('save-record', async (event, payload) => {
+  try {
+    const content = payload && payload.content;
+    if (typeof content !== 'string' || content.length > 20 * 1024 * 1024) return { ok: false, error: '内容无效' };
+    let name = path.basename(String((payload && payload.filename) || 'kline-game-record.json'));
+    if (!/\.json$/i.test(name)) name += '.json';
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const res = await dialog.showSaveDialog(win, {
+      title: '导出本局记录',
+      defaultPath: path.join(app.getPath('downloads'), name),
+      filters: [{ name: 'JSON 文件', extensions: ['json'] }]
+    });
+    if (res.canceled || !res.filePath) return { ok: false, canceled: true };
+    await fs.promises.writeFile(res.filePath, content, 'utf8');
+    return { ok: true, path: res.filePath };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
 
 // 渲染进程已自行存档后调用：退出整个应用
 ipcMain.on('quit-app', () => app.quit());
