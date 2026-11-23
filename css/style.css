@@ -140,3 +140,16 @@ button.small { padding: 1px 7px; font-size: 11px; }
 .meter.dd-over .m-fill.dd { background: #ff1744; } .meter.dd-over .dd-val, .dd-over { color: #ff1744; }
 .meter.dd-warn, .meter.dd-over { animation: pulse 1.6s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: .72; } }
+
+/* 回合小结 */
+.overlay.weekly { z-index: 12; }
+.weekly-card { width: 640px; max-height: 92vh; overflow-y: auto; }
+.wk-big { display: flex; gap: 40px; margin: 6px 0 14px; }
+.wk-big div span { display: block; color: var(--muted); font-size: 12px; }
+.wk-big div b { font-size: 22px; }
+.wk-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+.wk-table th, .wk-table td { text-align: right; padding: 5px 8px; border-bottom: 1px solid var(--line); }
+.wk-table th:first-child, .wk-table td:first-child { text-align: left; } .wk-table th { color: var(--muted); font-weight: 400; }
+.wk-sec { margin-bottom: 10px; font-size: 12px; } .wk-sec h4 { margin: 0 0 4px; color: var(--accent); font-size: 12px; }
+.wk-sec .warn { color: var(--warn); }
+.wk-news { margin: 0; padding-left: 18px; line-height: 1.8; }

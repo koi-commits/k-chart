@@ -111,8 +111,14 @@ const App = (() => {
       segStart = Date.now();
       GameSave.save(state, record);
       render();
-      if (state.status === 'ended') GameView.renderSettlement(state);
+      GameWeekly.open(state, turn);   // 回合小结；关闭后若游戏已结束再显示结算
     });
+  }
+
+  function closeWeekly() {
+    GameWeekly.close();
+    segStart = Date.now();            // 阅读小结的时间不计入下一回合耗时
+    if (state.status === 'ended') GameView.renderSettlement(state);
   }
 
   /** 导出本局记录为 JSON 文件（种子、每回合行动与耗时、最终结果） */
@@ -156,6 +162,7 @@ const App = (() => {
       case 'restart-confirmed': newGame(); break;
       case 'export': exportRecord(); break;
       case 'rules-close': closeRules(); break;
+      case 'weekly-close': closeWeekly(); break;
       case 'review-open': GameReview.render(state); break;
       case 'review-close': GameReview.close(); break;
     }
