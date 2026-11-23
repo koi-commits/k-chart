@@ -160,3 +160,42 @@ test('游戏逻辑不直接调用 Math.random', () => {
     assert.ok(!/Math\.random/.test(code), `${f} 使用了 Math.random`);
   }
 });
+
+test('试玩记录：回合行动记录后可重放出完全相同的结果', () => {
+  const Record = G('record.js');
+  let s = State.newGame(77);
+  const rec = Record.create(77, '2026-01-01T00:00:00.000Z');
+  const ids = Object.keys(s.companies);
+  while (s.status === 'playing') {
+    const id = ids[s.turn % ids.length];
+    let cur = s;
+    if (s.turn % 3 === 0) {                       // 有的回合做研究
+      const r = Research.research(cur, id, 2); cur = r.state;
+      rec.pending.research.push({ id, points: 2, estimate: cur.research[id].estimate });
+    }
+    const orders = s.turn % 2 ? [{ id, side: 'buy', shares: 200 }] : [{ id, side: 'sell', shares: 100 }];
+    const next = State.advanceTurn(cur, { orders });
+    Record.commitTurn(rec, { turn: s.turn, orders, durationMs: 1234.4, newsShown: s.news.map((n) => n.headline), state: next, endedAt: 'x' });
+    s = next;
+  }
+  assert.equal(rec.turns.length, Config.totalTurns);
+  assert.equal(rec.turns[0].durationMs, 1234);
+  assert.equal(rec.result.totalAssets, s.result.totalAssets);
+  assert.equal(rec.truth.length, 4);
+  const again = Record.replay(rec);
+  assert.deepEqual(again.result, s.result);
+  assert.deepEqual(again.tradeLog, s.tradeLog);
+  JSON.parse(JSON.stringify(rec)); // 可序列化
+});
+
+test('复盘所需数据：V 路径与 K 线对齐、事件带文本、研究史带真实 V', () => {
+  let s = State.newGame(8);
+  s = Research.research(s, 'xhkj', 1).state;
+  s = State.advanceTurn(s, { orders: [{ id: 'xhkj', side: 'buy', shares: 100 }] });
+  for (const id in s.candles) assert.equal(s.vPath[id].length, s.candles[id].length);
+  assert.equal(s.researchLog.length, 1);
+  assert.ok(s.researchLog[0].trueV > 0);
+  assert.equal(s.tradeLog.length, 1);
+  const end = playOut(s);
+  assert.ok(end.eventLog.length > 0 && end.eventLog.every((e) => typeof e.headline === 'string' && e.effects));
+});
