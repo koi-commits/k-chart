@@ -153,3 +153,6 @@ button.small { padding: 1px 7px; font-size: 11px; }
 .wk-sec { margin-bottom: 10px; font-size: 12px; } .wk-sec h4 { margin: 0 0 4px; color: var(--accent); font-size: 12px; }
 .wk-sec .warn { color: var(--warn); }
 .wk-news { margin: 0; padding-left: 18px; line-height: 1.8; }
+
+.chart-legend { float: right; font-weight: 400; font-size: 11px; color: var(--muted); }
+.cost-sample { display: inline-block; width: 18px; border-top: 2px dashed var(--accent); vertical-align: middle; margin: 0 3px 0 6px; }

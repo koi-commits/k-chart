@@ -130,6 +130,17 @@ const ChartManager = (() => {
     else mainChart.timeScale().fitContent();
   }
 
+  // 买卖标记与持仓成本线：只在初始化时创建的 candleSeries 上操作（setMarkers/createPriceLine 在 UMD 构建中可用）
+  var costLine = null;
+  function setTradeOverlay(markers, costPrice) {
+    if (!candleSeries) return;
+    candleSeries.setMarkers(markers || []);
+    if (costLine) { candleSeries.removePriceLine(costLine); costLine = null; }
+    if (costPrice > 0) {
+      costLine = candleSeries.createPriceLine({price:costPrice, color:'#f5a623', lineWidth:1, lineStyle:2, axisLabelVisible:true, title:'成本'});
+    }
+  }
+
   function applyIndicatorVis() {
     var showRSI = indiMode==='rsi';
     if(rsiSeries)rsiSeries.applyOptions({visible:showRSI});
@@ -306,5 +317,5 @@ const ChartManager = (() => {
     resizeOverlay();
   };
 
-  return {init:init,updateData:updateData,setTheme:setTheme,resize:resize,switchIndicator:switchIndicator,getIndicatorMode:getIndicatorMode,getMainChart:function(){return mainChart;},getCandleSeries:function(){return candleSeries;},showOverlay:showOverlay,hideOverlay:hideOverlay,isOverlayActive:isOverlayActive,updateOverlay:updateOverlay};
+  return {init:init,updateData:updateData,setTheme:setTheme,resize:resize,switchIndicator:switchIndicator,getIndicatorMode:getIndicatorMode,getMainChart:function(){return mainChart;},getCandleSeries:function(){return candleSeries;},setTradeOverlay:setTradeOverlay,showOverlay:showOverlay,hideOverlay:hideOverlay,isOverlayActive:isOverlayActive,updateOverlay:updateOverlay};
 })();

@@ -86,7 +86,8 @@ const GameView = (() => {
   function chartTitle(state, ui, upto) {
     const co = state.companies[ui.selected];
     const q = quote(state, ui.selected, upto);
-    $('chartTitle').innerHTML = `${co.name} <span class="muted">${co.industryName}</span>　<b class="${cls(q.price - q.prev)}">${fmt(q.price)}</b> <span class="${cls(q.price - q.prev)}">${pct(q.price / q.prev - 1)}</span>`;
+    $('chartTitle').innerHTML = `${co.name} <span class="muted">${co.industryName}</span>　<b class="${cls(q.price - q.prev)}">${fmt(q.price)}</b> <span class="${cls(q.price - q.prev)}">${pct(q.price / q.prev - 1)}</span>
+      <span class="chart-legend"><b class="up">▲</b>买入 <b class="down">▼</b>卖出 <i class="cost-sample"></i>持仓成本（不含费用）</span>`;
   }
 
   function renderResearch(state, ui) {
