@@ -33,10 +33,10 @@
       <!-- 中：K线（只显示已经过去的日K） -->
       <section id="chartArea">
         <div class="chart-title" id="chartTitle"></div>
-        <div id="mainChart" class="chart c-main"></div>
-        <div id="volumeChart" class="chart c-vol"></div>
-        <div id="macdChart" class="chart c-macd"></div>
-        <div id="rsiChart" class="chart c-rsi"></div>
+        <div id="mainChart" class="chart c-main"><div class="ch-label" title="黄/蓝/紫线：5 日、10 日、20 日移动平均线；橙色细线：布林带（20 日，上轨/中轨/下轨）"><i style="background:#f5a623"></i>MA5 <i style="background:#42a5f5"></i>MA10 <i style="background:#ce93d8"></i>MA20 <i style="background:#b9852c"></i>布林带</div></div>
+        <div id="volumeChart" class="chart c-vol"><div class="ch-label" title="每个交易日的成交量，红色=当日收涨，绿色=当日收跌">成交量</div></div>
+        <div id="macdChart" class="chart c-macd"><div class="ch-label" title="MACD（12,26,9）：趋势指标。柱子在 0 轴上方偏多、下方偏空；蓝/橙两条线是 DIF 与 DEA">MACD（12,26,9）</div></div>
+        <div id="rsiChart" class="chart c-rsi"><div class="ch-label" title="RSI（14）：强弱指标，0–100。通常 >70 视为偏热、<30 视为偏冷">RSI（14）</div></div>
       </section>
 
       <!-- 右：研究 + 下单 -->

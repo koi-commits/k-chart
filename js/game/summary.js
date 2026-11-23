@@ -108,8 +108,16 @@
       total += pnl; fees += fee;
     }
     const failed = (state.failedLog || []).filter((f) => f.turn === turn);
+    // 回撤（按每日总资产）：本周内相对历史最高点回落得最深的一天，以及截至周末的历史最大回撤
+    const d0 = (turn - 1) * GameConfig.daysPerTurn;                 // 本周第 1 个交易日前的已过天数
+    let peak = -Infinity, weekDD = 0;
+    for (let d = 0; d <= d0 + GameConfig.daysPerTurn; d++) {
+      peak = Math.max(peak, state.equity[d].assets);
+      if (d > d0) weekDD = Math.max(weekDD, (peak - state.equity[d].assets) / peak);
+    }
+    const overallDD = GameState.maxDrawdown(state.equity.slice(0, d0 + GameConfig.daysPerTurn + 1));
     return {
-      turn, total: round2(total), fees: round2(fees), rows,
+      turn, total: round2(total), fees: round2(fees), rows, weekDrawdown: weekDD, maxDrawdownSoFar: overallDD,
       trades: trades.map((t) => ({ id: t.id, name: state.companies[t.id].name, side: t.side, shares: t.shares, price: t.price, fee: t.fee, requested: t.requested || null })),
       failed: failed.map((f) => ({ id: f.id, name: state.companies[f.id].name, side: f.side, shares: f.shares, error: f.error, partial: !!f.partial })),
       news: state.eventLog.filter((e) => e.turn === turn).map((e) => e.headline),   // 本周发生的新闻（下回合开头会再次显示）

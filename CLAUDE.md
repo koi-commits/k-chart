@@ -101,6 +101,8 @@ npm run build                  # 构建 Windows 便携版（国内网络先设�
 - 顶部目标进度条：收益率 vs（等权基准 + `winMarginPct`），最大回撤 vs `winMaxDrawdown`（达到上限 75% 变橙、超限变红）。全部由 `GameSummary.progress` 计算，阈值读 config。
 - 回合小结、回合历史只能使用玩家本来能看到的信息：`candles`、`tradeLog`、`researchLog` 的 estimate/sigma、`eventLog` 的 headline。**禁止**读取 `vPath`、`trueV`、事件的 `kind`/`effects`；测试里有"小结不含真实价值"的检查。
 - 估值一律显示为"估值 ¥X + 区间条（约 68% 把握在此区间内）"，区间 = 估值·e^∓σ；不再写"±5%"（σ 是标准差，不是硬边界）。公司列表里"最近一日"（最后一个交易日涨跌）与"近一周"（5 日累计，与小结"本周累计涨跌"同口径）分开标注。
+- 回合小结带"本周回撤"：周内总资产相对历史最高点最深回落（回撤按每日总资产算，周中跌得更深也计入，所以赚钱的一周最大回撤也可能变大）。估值只剩最后 1 回合有效时橙色提醒；结算页的"研究估值"列和**研究当时**的真实价值比较（不是和期末价值比），并标注是否已过期。
+- 图表标题：主图均线图例、成交量、MACD、RSI（TradingView 水印是 lightweight-charts 的署名要求，保留）。
 - 主图买卖标记与成本线：`ChartManager.setTradeOverlay`，只用初始化时创建的 candleSeries。
 
 ### 图表（chart.js）

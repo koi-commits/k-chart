@@ -78,6 +78,11 @@ const GameView = (() => {
 
   const staleBadge = (id) => `<button class="stale-badge" data-action="stale-news" data-id="${id}" title="点击查看是哪几条新闻">研究后出现相关新闻</button>`;
 
+  /** 估值剩余有效回合：只剩最后 1 回合时用橙色提醒 */
+  const remainHtml = (est) => est.remaining <= 1
+    ? '<span class="expiring" title="这条估值本回合还有效，下回合起过期">最后 1 回合有效</span>'
+    : `<span>剩余 ${est.remaining} 回合</span>`;
+
   const TIP_DAY = '最近一个交易日相对前一个交易日的涨跌（这是按周玩的游戏，所以只是上周最后一天的变化）。';
   const TIP_WEEK = '最近 5 个交易日（一周）的累计涨跌，口径和回合小结里的“本周累计涨跌”一致。';
 
@@ -92,7 +97,7 @@ const GameView = (() => {
       let estHtml, premHtml = '', rangeHtml = '';
       const staleNews = est ? GameSummary.newsSinceResearch(state, id).length : 0;
       if (est) {
-        estHtml = `<span class="est-ok">估值 ${money(est.estimate)}</span><span>剩余 ${est.remaining} 回合</span>`;
+        estHtml = `<span class="est-ok">估值 ${money(est.estimate)}</span>${remainHtml(est)}`;
         rangeHtml = rangeBar(est, q.price, false);
         premHtml = `<span>现价较估值</span><span class="${cls(q.price / est.estimate - 1)}">${pct(q.price / est.estimate - 1, 1)}</span>`;
       } else {
@@ -133,16 +138,16 @@ const GameView = (() => {
     $('researchPanel').innerHTML = `<h3>🔬 研究 · ${co.name}</h3>
       <div class="kv"><span>当前估值${hint}</span><b>${est ? money(est.estimate) : '—'}</b></div>
       ${est ? rangeBar(est, quote(state, id).price, true) : ''}
-      <div class="kv"><span>有效期</span><span>${est ? `剩余 ${est.remaining} 回合` : '无有效估值'}</span></div>
+      <div class="kv"><span>有效期</span>${est ? remainHtml(est) : '<span>无有效估值</span>'}</div>
       ${est && GameSummary.newsSinceResearch(state, id).length ? `<div class="kv">${staleBadge(id)}</div>` : ''}
       <div class="kv"><span>本回合剩余研究点</span><b>${left}</b></div>
       <div class="kv muted"><span>区间半宽：${sigmas}</span></div>
-      <div class="btns">
-        <button data-action="rn" data-d="-1" ${n <= 1 || left < 1 ? 'disabled' : ''}>−</button>
-        <b style="min-width:20px;text-align:center">${left < 1 ? 0 : n}</b>
+      ${left < 1 ? `<div class="muted" style="margin-top:8px">本回合研究点已用完，下回合恢复到 ${R.pointsPerTurn} 点。</div>` : `<div class="btns">
+        <button data-action="rn" data-d="-1" ${n <= 1 ? 'disabled' : ''}>−</button>
+        <b style="min-width:20px;text-align:center">${n}</b>
         <button data-action="rn" data-d="1" ${n >= left ? 'disabled' : ''}>+</button>
-        <button data-action="research" ${left < 1 ? 'disabled' : ''}>投入 ${left < 1 ? 0 : n} 点研究</button>
-      </div>
+        <button data-action="research">投入 ${n} 点研究</button>
+      </div>`}
       <div class="muted" style="margin-top:6px">估值是对"真实价值"的带误差估计，${R.validTurns} 回合后过期；重新研究会覆盖旧估值。</div>`;
   }
 
@@ -260,9 +265,12 @@ const GameView = (() => {
     const bust = r.outcome === 'bankrupt';
     const rows = r.truth.map((t) => {
       const est = state.research[t.id];
+      const expired = est && !GameResearch.getEstimate(state, t.id);
+      // 研究的准确度要和"研究当时"的真实价值比（之后真实价值还会变），不是和期末价值比
+      const rl = est && state.researchLog.filter((r) => r.id === t.id && r.turn === est.turn).slice(-1)[0];
       return `<tr><td>${t.name}</td><td>${fmt(t.V)}</td><td>${fmt(t.price)}</td>
         <td class="${cls(t.price / t.V - 1)}">${pct(t.price / t.V - 1, 1)}</td>
-        <td>${est ? fmt(est.estimate) + ` <span class="muted">(误差 ${pct(est.estimate / t.V - 1, 1)})</span>` : '<span class="muted">未研究</span>'}</td></tr>`;
+        <td>${est ? fmt(est.estimate) + ` <span class="muted">（第 ${est.turn} 回合研究${expired ? '，<b>已过期</b>' : ''}${rl ? `；当时真实价值 ${fmt(rl.trueV)}，估值误差 ${pct(est.estimate / rl.trueV - 1, 1)}` : ''}）</span>` : '<span class="muted">未研究</span>'}</td></tr>`;
     }).join('');
     el.innerHTML = `<div class="card">
       <h2>${bust ? '💥 挑战失败' : '🏁 游戏结束'}</h2>
@@ -277,7 +285,7 @@ const GameView = (() => {
       ${conditionsHtml(r)}
       ${quarterTableHtml(r.quarters)}
       <div class="muted" style="margin-bottom:6px">真相揭晓：每家公司的真实价值</div>
-      <table><tr><th>公司</th><th>真实价值 V</th><th>期末股价</th><th>价格偏离</th><th>你最后一次估值</th></tr>${rows}</table>
+      <table><tr><th>公司</th><th>真实价值 V</th><th>期末股价</th><th>价格偏离</th><th>你最后一次研究的估值</th></tr>${rows}</table>
       <div class="export-msg muted" id="exportMsg"></div>
       <div class="actions"><button data-action="export">💾 导出本局记录</button> <button data-action="review-open">📊 查看复盘</button> <button class="primary" data-action="restart-confirmed">再来一局</button></div>
     </div>`;

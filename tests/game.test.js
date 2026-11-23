@@ -379,3 +379,18 @@ test('研究后相关新闻：只列研究之后、与该公司/行业有关的�
   s = Research.research(s, 'jzjy', 1).state;
   assert.deepEqual(Summary.newsSinceResearch(s, 'jzjy'), []);
 });
+
+test('回合小结的回撤：周内最深回落 ≥ 周末当前回落，且不超过截至周末的最大回撤', () => {
+  const Summary = G('summary.js');
+  let s = State.newGame(2);
+  const ids = Object.keys(s.companies);
+  for (let t = 1; t <= 8; t++) {
+    s = State.advanceTurn(s, { orders: t === 1 ? ids.map((id) => ({ id, side: 'buy', shares: 100 })) : [] });
+    const w = Summary.weekSummary(s, t);
+    const endAssets = s.equity[t * Config.daysPerTurn].assets;
+    let peak = -Infinity; for (let d = 0; d <= t * Config.daysPerTurn; d++) peak = Math.max(peak, s.equity[d].assets);
+    assert.ok(w.weekDrawdown >= (peak - endAssets) / peak - 1e-12, '周内最深回落不应小于周末的回落');
+    assert.ok(w.weekDrawdown <= w.maxDrawdownSoFar + 1e-12);
+    assert.ok(Math.abs(w.maxDrawdownSoFar - State.maxDrawdown(s.equity.slice(0, t * Config.daysPerTurn + 1))) < 1e-12);
+  }
+});
