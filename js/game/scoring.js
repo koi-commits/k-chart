@@ -31,11 +31,16 @@
     return { excess, raw, score, clamped: score !== raw };
   }
 
-  /** 回撤扣分：maxDD 为小数（0.12 = 12%）。超过阈值的部分每个百分点扣 perPoint 分，没有上限 */
+  /**
+   * 回撤扣分：maxDD 为"超额回撤"（小数，0.05 = 5%）——玩家总资产 ÷ 等权基准净值 的相对曲线，
+   * 按每周收盘从历史最高点回落的最大幅度。超过阈值的部分每个百分点扣 perPoint 分，扣分封顶 maxPenalty。
+   */
   function drawdownPenalty(maxDD) {
     const c = SC().drawdown;
     const over = Math.max(0, (maxDD - c.threshold) * 100);
-    return { maxDD, overPoints: over, penalty: over * c.perPoint };
+    const raw = over * c.perPoint;
+    const penalty = Math.min(raw, c.maxPenalty);
+    return { maxDD, overPoints: over, raw, penalty, capped: penalty < raw };
   }
 
   function gradeOf(total) {
@@ -60,9 +65,10 @@
     const quarters = quarterDiffs.map(quarterScore);
     const quarterTotal = quarters.reduce((a, q) => a + q.score, 0);
     const fin = finalScore(finalExcess), pen = drawdownPenalty(maxDD);
-    const total = quarterTotal + fin.score - pen.penalty;
+    const rawTotal = quarterTotal + fin.score - pen.penalty;
+    const total = Math.max(SC().totalMin, rawTotal);                    // 总分下限
     const grade = gradeOf(total);
-    return { quarters, quarterTotal, final: fin, drawdown: pen, total, grade, pass: isPass(grade) };
+    return { quarters, quarterTotal, final: fin, drawdown: pen, rawTotal, total, totalFloored: total > rawTotal, grade, pass: isPass(grade) };
   }
 
   /**

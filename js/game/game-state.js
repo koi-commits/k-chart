@@ -118,6 +118,25 @@
   }
 
   /**
+   * 超额回撤：相对净值 R = (总资产 / 本金) ÷ 等权基准净值，按**每周收盘**取点（第 0、5、10… 个交易日），
+   * 计算 R 从历史最高点回落的最大幅度（小数）。大盘下跌时玩家比基准少跌，R 上升，不算回撤；盘中回落不计入。
+   * d 之后未满一周的交易日不参与（周中不更新）。
+   */
+  function excessDrawdownInfo(state, d) {
+    if (d == null) d = state.equity.length - 1;
+    const step = GameConfig.daysPerTurn, last = Math.floor(d / step) * step;
+    let peak = -Infinity, dd = 0, cur = 0, r = 1;
+    for (let k = 0; k <= last; k += step) {
+      r = (state.equity[k].assets / GameConfig.initialCash) / benchIndexAt(state, k);
+      peak = Math.max(peak, r);
+      cur = (peak - r) / peak;
+      dd = Math.max(dd, cur);
+    }
+    return { max: dd, cur, nav: r };      // max = 超额回撤（最大），cur = 当前离相对净值最高点回落多少，nav = 当前相对净值
+  }
+  const excessDrawdown = (state, d) => excessDrawdownInfo(state, d).max;
+
+  /**
    * 评分快照：假设游戏在已过 d 个交易日时结束，得分是多少。
    * 季度分 = 已完成季度 + 进行中的季度（截至 d 的超额）；终局分 = 截至 d 的全局超额；回撤取截至 d 的最大回撤。
    */
@@ -129,9 +148,9 @@
     if (completed < Q && d > completed * qd) diffs.push(quarterAt(state, completed + 1, d).diff);   // 进行中的季度
     const playerPct = (state.equity[d].assets / GameConfig.initialCash - 1) * 100;
     const benchPct = (benchIndexAt(state, d) - 1) * 100;
-    const dd = maxDrawdown(state.equity.slice(0, d + 1));
+    const dd = excessDrawdown(state, d);                       // 评分用超额回撤（相对基准、按周收盘）
     const sc = GameScoring.summarize(diffs, playerPct - benchPct, dd);
-    return Object.assign(sc, { completedQuarters: completed, playerPct, benchPct });
+    return Object.assign(sc, { completedQuarters: completed, playerPct, benchPct, absDrawdown: maxDrawdown(state.equity.slice(0, d + 1)) });
   }
 
   /** 已完成的各季度成绩（d 缺省 = 已过的全部交易日） */
@@ -237,12 +256,13 @@
         benchmarkReturnPct: benchPct,
         quarters, quartersBeaten,
         score, grade: score.grade, pass: score.pass,
-        maxDrawdown: maxDrawdown(s.equity),
+        maxDrawdown: maxDrawdown(s.equity),                 // 账户自身的最大回撤（按每日总资产，仅供参考，不参与评分）
+        excessDrawdown: score.drawdown.maxDD,               // 超额回撤（参与评分）
         truth: ids.map((id) => ({ id, name: s.companies[id].name, V: Math.round(s.companies[id].V * 100) / 100, price: lastClose(s, id) }))
       };
     }
     return s;
   }
 
-  return { newGame, advanceTurn, totalAssets, maxDrawdown, lastClose, benchmarkReturnPct, scoreSnapshot, quarterResults, quarterAt, benchIndexAt };
+  return { newGame, advanceTurn, totalAssets, maxDrawdown, lastClose, benchmarkReturnPct, scoreSnapshot, excessDrawdown, excessDrawdownInfo, quarterResults, quarterAt, benchIndexAt };
 });

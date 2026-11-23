@@ -25,11 +25,8 @@
     const n = upto == null ? state.candles[ids(state)[0]].length : upto;
     let assets = state.cash;
     for (const id of Object.keys(state.positions)) assets += state.positions[id].shares * state.candles[id][n - 1].close;
+    const dInfo = GameState.excessDrawdownInfo(state, Math.max(0, n - warmDays()));   // 超额回撤（相对基准、按周收盘）
     const eq = state.equity.slice(0, Math.max(1, 1 + n - warmDays()));
-    let peak = -Infinity;
-    for (const e of eq) peak = Math.max(peak, e.assets);
-    const last = eq[eq.length - 1].assets;
-    const maxDD = GameState.maxDrawdown(eq);
     let bench = 0;
     if (state.benchStart) {
       bench = (ids(state).reduce((a, id) => a + state.candles[id][n - 1].close / state.benchStart[id] - 1, 0) / ids(state).length) * 100;
@@ -52,11 +49,11 @@
         score: sc.quarters[i] ? sc.quarters[i].score : (i === done.length ? GameScoring.quarterScore(cur.diff).score : null)
       }))
     };
-    const dd = GameScoring.drawdownPenalty(maxDD);
+    const dd = GameScoring.drawdownPenalty(dInfo.max);
     return {
       assets, returnPct: (assets / GameConfig.initialCash - 1) * 100, benchPct: bench,
-      maxDD, curDD: peak > 0 ? Math.max(0, (peak - last) / peak) : 0,
-      ddThreshold: GameConfig.scoring.drawdown.threshold, ddPenalty: dd.penalty,
+      maxDD: dInfo.max, curDD: dInfo.cur, absMaxDD: GameState.maxDrawdown(eq),
+      ddThreshold: GameConfig.scoring.drawdown.threshold, ddPenalty: dd.penalty, ddCapped: dd.capped,
       score: { total: sc.total, grade: sc.grade, pass: sc.pass, next: GameScoring.nextGrade(sc.total),
         quarterTotal: sc.quarterTotal, final: sc.final.score, finalExcess: sc.final.excess, penalty: sc.drawdown.penalty },
       quarter
@@ -70,7 +67,7 @@
   function outlook(state, d) {
     if (d == null) d = state.equity.length - 1;
     const done = GameState.quarterResults(state, d).map((x) => GameScoring.quarterScore(x.diff).score);
-    const maxDD = GameState.maxDrawdown(state.equity.slice(0, d + 1));
+    const maxDD = GameState.excessDrawdown(state, d);
     return { best: GameScoring.bestPossible(done, maxDD), dead: GameScoring.isDead(done, maxDD) };
   }
 
@@ -119,16 +116,10 @@
       total += pnl; fees += fee;
     }
     const failed = (state.failedLog || []).filter((f) => f.turn === turn);
-    // 回撤（按每日总资产）：本周内相对历史最高点回落得最深的一天，以及截至周末的历史最大回撤
-    const d0 = (turn - 1) * GameConfig.daysPerTurn;                 // 本周第 1 个交易日前的已过天数
-    let peak = -Infinity, weekDD = 0;
-    for (let d = 0; d <= d0 + GameConfig.daysPerTurn; d++) {
-      peak = Math.max(peak, state.equity[d].assets);
-      if (d > d0) weekDD = Math.max(weekDD, (peak - state.equity[d].assets) / peak);
-    }
-    const overallDD = GameState.maxDrawdown(state.equity.slice(0, d0 + GameConfig.daysPerTurn + 1));
+    // 超额回撤（相对基准净值，按周收盘）：本周末相对最高点回落多少，以及截至周末的最大超额回撤
+    const dEnd = turn * GameConfig.daysPerTurn, dInfo = GameState.excessDrawdownInfo(state, dEnd);
     return {
-      turn, total: round2(total), fees: round2(fees), rows, weekDrawdown: weekDD, maxDrawdownSoFar: overallDD,
+      turn, total: round2(total), fees: round2(fees), rows, weekDrawdown: dInfo.cur, maxDrawdownSoFar: dInfo.max,
       trades: trades.map((t) => ({ id: t.id, name: state.companies[t.id].name, side: t.side, shares: t.shares, price: t.price, fee: t.fee, requested: t.requested || null })),
       failed: failed.map((f) => ({ id: f.id, name: state.companies[f.id].name, side: f.side, shares: f.shares, error: f.error, partial: !!f.partial })),
       news: state.eventLog.filter((e) => e.turn === turn).map((e) => e.headline),   // 本周发生的新闻（下回合开头会再次显示）

@@ -62,11 +62,11 @@ const GameView = (() => {
       <div class="m-track"><div class="m-zero" style="left:${zero}%"></div>
         <div class="m-fill ${p.returnPct >= 0 ? 'pos' : 'neg'}" style="left:${Math.min(zero, cur)}%;width:${Math.abs(cur - zero)}%"></div>
         <div class="m-tick bench" style="left:${X2(p.benchPct)}%" title="等权基准 ${sgn(p.benchPct)}%"></div></div></div>`;
-    const ddMax = Math.max(0.25, p.maxDD * 1.1), ddPct = (v) => Math.min(100, (v / ddMax) * 100);
+    const ddMax = Math.max(0.12, p.maxDD * 1.2), ddPct = (v) => Math.min(100, (v / ddMax) * 100);
     const ddLevel = p.ddPenalty > 0 ? 'warn' : 'ok';
     const ddHtml = `<div class="meter dd-${ddLevel}">
-      <div class="m-head"><span>最大回撤 <b class="dd-val">${(p.maxDD * 100).toFixed(1)}%</b>${T(`从总资产历史最高点回落的最大幅度（按每日总资产计算）。超过 ${(p.ddThreshold * 100).toFixed(0)}% 的部分每超出 1 个百分点扣 ${C.drawdown.perPoint} 分，没有上限。"当前距高点"是此刻离最高点已经回落了多少；"最大回撤"是历史上回落得最深的一次，只增不减。`)} <span class="muted">（当前距高点 ${(p.curDD * 100).toFixed(1)}%）</span></span>
-        <span class="muted">${p.ddPenalty > 0 ? `已扣 <b class="dd-val">${p.ddPenalty.toFixed(1)}</b> 分` : `超过 <b>${(p.ddThreshold * 100).toFixed(0)}%</b> 才开始扣分`}</span></div>
+      <div class="m-head"><span>超额回撤 <b class="dd-val">${(p.maxDD * 100).toFixed(1)}%</b>${T(`最大回撤（超额回撤）= 你的总资产相对基准的净值（总资产 ÷ 基准）从历史最高点回落的最大幅度，按每周收盘计算，不计盘中回落。只有"跑输基准"的部分才算：大盘下跌时你跌得比基准少，不扣分。超过 ${(p.ddThreshold * 100).toFixed(0)}% 的部分每超出 1 个百分点扣 ${C.drawdown.perPoint} 分，最多扣 ${C.drawdown.maxPenalty} 分。`)} <span class="muted">（当前离最高点 ${(p.curDD * 100).toFixed(1)}%）</span></span>
+        <span class="muted">${p.ddPenalty > 0 ? `已扣 <b class="pen">${p.ddPenalty.toFixed(1)}</b> 分${p.ddCapped ? '（已达扣分上限）' : ''}` : `超过 <b>${(p.ddThreshold * 100).toFixed(0)}%</b> 才开始扣分`}</span></div>
       <div class="m-track"><div class="m-fill dd" style="left:0;width:${ddPct(p.maxDD)}%"></div>
         <div class="m-tick limit" style="left:${ddPct(p.ddThreshold)}%" title="超过 ${(p.ddThreshold * 100).toFixed(0)}% 开始扣分"></div></div></div>`;
     const pills = Q.pills.map((k, i) => `<span class="q-pill ${k.state}" title="第 ${i + 1} 季度${k.state === 'done' ? '（已结束）' : k.state === 'cur' ? '（进行中，得分为目前的）' : ''}">${i + 1}${k.state === 'future' ? ' ·' : ` <b>${sgn(k.score)}</b>`}</span>`).join('');
@@ -269,8 +269,8 @@ const GameView = (() => {
     const fin = sc.final;
     return `<table class="qtable"><tr><th>项目</th><th class="l">构成</th><th>得分</th></tr>${rows}
       <tr><td>终局分</td><td class="l">全局超额 ${sg2(fin.excess)} 点 × ${F.perPoint} = ${sg2(fin.raw)}${fin.clamped ? `　→ 触及${fin.raw > fin.score ? '上' : '下'}限 ${fin.score}` : ''}</td><td class="${cls(fin.score)}"><b>${sg1(fin.score)}</b></td></tr>
-      <tr><td>回撤扣分</td><td class="l">最大回撤 ${(sc.drawdown.maxDD * 100).toFixed(2)}%，超过 ${(D.threshold * 100).toFixed(0)}% 的部分 ${sc.drawdown.overPoints.toFixed(2)} 个百分点 × ${D.perPoint}</td><td class="${sc.drawdown.penalty > 0 ? 'down' : ''}"><b>${sc.drawdown.penalty > 0 ? '−' : ''}${sc.drawdown.penalty.toFixed(1)}</b></td></tr>
-      <tr class="qt-total"><td>${opts && opts.partial ? '目前总分（若现在结束）' : '总分'}</td><td class="l">季度分合计 ${sg1(sc.quarterTotal)} ＋ 终局分 ${sg1(fin.score)} − 回撤扣分 ${sc.drawdown.penalty.toFixed(1)}</td><td><b>${sg1(sc.total)}</b></td></tr></table>`;
+      <tr><td>回撤扣分</td><td class="l">超额回撤 ${(sc.drawdown.maxDD * 100).toFixed(2)}%（相对基准净值从最高点回落），超过 ${(D.threshold * 100).toFixed(0)}% 的部分 ${sc.drawdown.overPoints.toFixed(2)} 个百分点 × ${D.perPoint}${sc.drawdown.capped ? `　→ 触及扣分上限 ${D.maxPenalty}` : ''}</td><td class="${sc.drawdown.penalty > 0 ? 'pen' : ''}"><b>${sc.drawdown.penalty > 0 ? '−' : ''}${sc.drawdown.penalty.toFixed(1)}</b></td></tr>
+      <tr class="qt-total"><td>${opts && opts.partial ? '目前总分（若现在结束）' : '总分'}</td><td class="l">季度分合计 ${sg1(sc.quarterTotal)} ＋ 终局分 ${sg1(fin.score)} − 回撤扣分 ${sc.drawdown.penalty.toFixed(1)}${sc.totalFloored ? `　→ 触及总分下限 ${GameConfig.scoring.totalMin}` : ''}</td><td><b>${sg1(sc.total)}</b></td></tr></table>`;
   }
 
   /** 季度成绩单（每个季度结束时弹出） */
@@ -316,7 +316,7 @@ const GameView = (() => {
         <div><span>总资产</span><b>${money(r.totalAssets)}</b></div>
         <div><span>收益率</span><b class="${cls(r.returnPct)}">${(r.returnPct >= 0 ? '+' : '') + r.returnPct.toFixed(2)}%</b></div>
         <div><span>等权持有基准</span><b class="${cls(r.benchmarkReturnPct)}">${(r.benchmarkReturnPct >= 0 ? '+' : '') + r.benchmarkReturnPct.toFixed(2)}%</b></div>
-        <div><span>最大回撤</span><b class="down">${(r.maxDrawdown * 100).toFixed(2)}%</b></div>
+        <div><span>超额回撤${GameTips.tip('你的总资产相对基准净值，从历史最高点回落的最大幅度（按每周收盘），参与回撤扣分。账户自身的最大回撤是 ' + (r.maxDrawdown * 100).toFixed(2) + '%，只供参考。', 'r')}</span><b class="pen">${(r.excessDrawdown * 100).toFixed(2)}%</b></div>
       </div>
       <div class="grade-hero"><div class="gh-grade g-${r.grade}">${r.grade}</div>
         <div><div class="gh-total">总分 <b>${sg1(r.score.total)}</b></div>

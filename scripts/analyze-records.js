@@ -38,20 +38,37 @@ function listJson(dir) {
 
 // ───────── 单局分析 ─────────
 /** 分数构成：优先用记录里的 result.score；旧版本没有就按当前 config 用各季度超额重算 */
+function scoreFrom(s, r, extra) {
+  return Object.assign({ recomputed: false, quarters: s.quarters.map((q) => q.score), quarterExcess: s.quarters.map((q) => q.excess),
+    quarterTotal: s.quarterTotal, final: s.final.score, finalExcess: s.final.excess, penalty: s.drawdown.penalty, excessDrawdown: s.drawdown.maxDD,
+    total: s.total, grade: r.grade || s.grade, pass: r.pass != null ? r.pass : s.pass }, extra);
+}
+
+/** 别的版本的记录：按当前规则重放，得到当前规则下的评分（价格路径变了、或重放对不上就返回 null） */
+function rescoreByReplay(rec) {
+  if (!Array.isArray(rec.turns) || !rec.turns.length) return null;
+  try {
+    const s = Record.replay(rec);
+    const last = rec.turns[rec.turns.length - 1];
+    if (!s.result || !s.result.score || Math.abs(s.equity[s.equity.length - 1].assets - last.assetsAfter) > 0.02) return null;
+    return scoreFrom(s.result.score, s.result, { recomputed: true, how: 'replay' });
+  } catch (e) { return null; }
+}
+
 function scoreOf(rec) {
   const r = rec.result;
   if (!r) return null;
-  if (r.score && r.score.quarters) {
-    const s = r.score;
-    return { recomputed: false, quarters: s.quarters.map((q) => q.score), quarterExcess: s.quarters.map((q) => q.excess),
-      quarterTotal: s.quarterTotal, final: s.final.score, finalExcess: s.final.excess, penalty: s.drawdown.penalty,
-      total: s.total, grade: r.grade || s.grade, pass: r.pass != null ? r.pass : s.pass };
+  if (rec.gameVersion !== Config.gameVersion) {
+    const rs = rescoreByReplay(rec);
+    if (rs) return rs;
   }
+  if (r.score && r.score.quarters && rec.gameVersion === Config.gameVersion) return scoreFrom(r.score, r);
   if (Array.isArray(r.quarters) && r.quarters.length && r.quarters[0].diff != null) {
+    // 无法重放：只能用记录里的各季度超额 + 账户最大回撤（绝对值，不是超额回撤）近似
     const diffs = r.quarters.map((q) => q.diff);
     const s = Scoring.summarize(diffs, r.returnPct - r.benchmarkReturnPct, r.maxDrawdown);
     const bust = r.outcome === 'bankrupt';
-    return { recomputed: true, quarters: s.quarters.map((q) => q.score), quarterExcess: diffs, quarterTotal: s.quarterTotal,
+    return { recomputed: true, how: 'approx', quarters: s.quarters.map((q) => q.score), quarterExcess: diffs, quarterTotal: s.quarterTotal,
       final: s.final.score, finalExcess: s.final.excess, penalty: s.drawdown.penalty, total: s.total,
       grade: bust ? 'D' : s.grade, pass: bust ? false : s.pass };
   }

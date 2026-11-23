@@ -24,7 +24,7 @@ const GameWeekly = (() => {
     return `<div class="wk-big"><div><span>本周总盈亏</span><b class="${cls(w.total)}">${money(w.total)}</b></div>
         <div><span>本周费用</span><b>¥${fmt(w.fees)}</b></div>
         <div><span>周末总资产</span><b>¥${fmt(w.assetsEnd)}</b></div></div>
-      <div class="muted" style="margin:-4px 0 12px;font-size:12px">本周内总资产相对历史最高点最深回落到 <b>${(w.weekDrawdown * 100).toFixed(1)}%</b>；截至周末的最大回撤 <b>${(w.maxDrawdownSoFar * 100).toFixed(1)}%</b>（超过 ${(GameConfig.scoring.drawdown.threshold * 100).toFixed(0)}% 开始扣分）${GameTips.tip('最大回撤 = 从总资产历史最高点回落的最大幅度，按每日总资产计算，只增不减；超过阈值的部分会按百分点扣分。哪怕本周收盘时赚钱了，周中某一天跌得更深也会计入。', 'r')}</div>
+      <div class="muted" style="margin:-4px 0 12px;font-size:12px">周末你相对基准的净值离历史最高点 <b>${(w.weekDrawdown * 100).toFixed(1)}%</b>；截至周末的超额回撤（最大）<b class="${w.maxDrawdownSoFar > GameConfig.scoring.drawdown.threshold ? 'pen' : ''}">${(w.maxDrawdownSoFar * 100).toFixed(1)}%</b>（超过 ${(GameConfig.scoring.drawdown.threshold * 100).toFixed(0)}% 开始扣分）${GameTips.tip('超额回撤 = 你的总资产相对基准净值（总资产 ÷ 基准）从历史最高点回落的最大幅度，按每周收盘计算，不计盘中回落，只增不减。大盘下跌时你跌得比基准少，不算回撤。', 'r')}</div>
       <table class="wk-table"><tr><th>公司</th><th>本周累计涨跌${GameTips.tip('本周五收盘价相对上周五收盘价的涨跌，即一整周的累计涨跌。左侧公司列表里的"最近一日"只是最后一天的变化。')}</th><th>周末持仓</th><th>本周盈亏${GameTips.tip('本周总资产的变化里，这家公司贡献的部分（含买卖、持仓价格变化和手续费）。')}</th></tr>${rows}</table>
       <div class="wk-sec"><h4>成交</h4>${tr}${failed}</div>
       <div class="wk-sec"><h4>本周新闻</h4><ul class="wk-news">${news}</ul></div>`;

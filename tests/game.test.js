@@ -73,22 +73,26 @@ test('评分：季度分（基础分 + 超额 + 上下限）', () => {
   let prev = -Infinity; for (let x = -100; x <= 100; x += 0.5) { const s = S.quarterScore(x).score; assert.ok(s >= prev - 1e-12); prev = s; }
 });
 
-test('评分：终局分与回撤扣分（连续扣分，没有硬性上限）', () => {
+test('评分：终局分与回撤扣分（有扣分上限）；总分有下限', () => {
   const S = G('scoring.js'), f = Config.scoring.final, d = Config.scoring.drawdown;
   assert.ok(Math.abs(S.finalScore(10).score - f.perPoint * 10) < 1e-12);
   assert.equal(S.finalScore(1e6).score, f.max); assert.equal(S.finalScore(-1e6).score, f.min);
   assert.equal(S.drawdownPenalty(0).penalty, 0);
   assert.equal(S.drawdownPenalty(d.threshold).penalty, 0);              // 刚到阈值不扣
   assert.ok(Math.abs(S.drawdownPenalty(d.threshold + 0.05).penalty - 5 * d.perPoint) < 1e-9);   // 超出 5 个百分点
-  assert.ok(S.drawdownPenalty(0.9).penalty > S.drawdownPenalty(0.5).penalty);                  // 越大越扣，不封顶
-  assert.ok(Math.abs(S.drawdownPenalty(0.9).penalty - (90 - d.threshold * 100) * d.perPoint) < 1e-9);
+  const big = S.drawdownPenalty(0.9);
+  assert.equal(big.penalty, d.maxPenalty); assert.equal(big.capped, true); assert.ok(big.raw > big.penalty);   // 扣分封顶
+  assert.equal(S.drawdownPenalty(d.threshold + 0.01).capped, false);
+  // 总分下限：再差也不低于 totalMin
+  const worst = S.summarize([-50, -50, -50, -50], -80, 0.9);
+  assert.equal(worst.total, Config.scoring.totalMin); assert.equal(worst.totalFloored, true); assert.ok(worst.rawTotal < worst.total);
 });
 
 test('评分：总分 = 季度分之和 + 终局分 − 回撤扣分；等级线与过关', () => {
   const S = G('scoring.js'), g = Config.scoring.grades;
   const r = S.summarize([3, -2, 6, 1], 12, 0.14);
   const q = [3, -2, 6, 1].reduce((a, x) => a + S.quarterScore(x).score, 0);
-  const expect = q + S.finalScore(12).score - S.drawdownPenalty(0.14).penalty;
+  const expect = Math.max(Config.scoring.totalMin, q + S.finalScore(12).score - S.drawdownPenalty(0.14).penalty);
   assert.ok(Math.abs(r.total - expect) < 1e-9); assert.equal(r.quarters.length, 4);
   assert.deepEqual([S.gradeOf(g.S), S.gradeOf(g.A), S.gradeOf(g.B), S.gradeOf(g.C), S.gradeOf(g.C - 0.01)], ['S', 'A', 'B', 'C', 'D']);
   assert.deepEqual([S.gradeOf(g.S - 0.01), S.gradeOf(g.A - 0.01), S.gradeOf(g.B - 0.01)], ['A', 'B', 'C']);
@@ -164,8 +168,9 @@ test('终局评分：result.score 与逐项公式一致；中途判负一律 D',
   assert.equal(sc.quarters.length, Config.quarters);
   const q = sc.quarters.reduce((a, x) => a + x.score, 0);
   const finalEx = end.result.returnPct - end.result.benchmarkReturnPct;
-  const expect = q + Sc.finalScore(finalEx).score - Sc.drawdownPenalty(end.result.maxDrawdown).penalty;
+  const expect = Math.max(Config.scoring.totalMin, q + Sc.finalScore(finalEx).score - Sc.drawdownPenalty(end.result.excessDrawdown).penalty);
   assert.ok(Math.abs(sc.total - expect) < 1e-9);
+  assert.ok(Math.abs(end.result.excessDrawdown - State.excessDrawdown(end, end.equity.length - 1)) < 1e-12);
   assert.equal(end.result.grade, Sc.gradeOf(sc.total)); assert.equal(end.result.pass, Sc.isPass(end.result.grade));
   let s = JSON.parse(JSON.stringify(State.newGame(1))); s.cash = Config.bankruptcyLine - 1;
   s = State.advanceTurn(s, {});
@@ -316,7 +321,8 @@ test('summary.progress：收益率/基准/最大回撤', () => {
   s = State.advanceTurn(s, { orders: [{ id: 'jzjy', side: 'buy', shares: 300 }] });
   p = Summary.progress(s);
   assert.ok(Math.abs(p.benchPct - State.benchmarkReturnPct(s)) < 1e-9);
-  assert.ok(Math.abs(p.maxDD - State.maxDrawdown(s.equity)) < 1e-12);
+  assert.ok(Math.abs(p.maxDD - State.excessDrawdown(s, s.equity.length - 1)) < 1e-12);
+  assert.ok(Math.abs(p.absMaxDD - State.maxDrawdown(s.equity)) < 1e-12);
   const base = s.candles.jzjy.length - 5;
   assert.equal(Summary.progress(s, base + 5).assets, p.assets);
   assert.equal(Summary.progress(s, base + 1).maxDD <= p.maxDD, true);
@@ -428,7 +434,7 @@ test('研究后相关新闻：只列研究之后、与该公司/行业有关的�
   assert.deepEqual(Summary.newsSinceResearch(s, 'jzjy'), []);
 });
 
-test('回合小结的回撤：周内最深回落 ≥ 周末当前回落，且不超过截至周末的最大回撤', () => {
+test('回合小结的回撤：用相对基准的周收盘回撤；当前回落不超过截至周末的最大回撤', () => {
   const Summary = G('summary.js');
   let s = State.newGame(2);
   const ids = Object.keys(s.companies);
@@ -437,9 +443,8 @@ test('回合小结的回撤：周内最深回落 ≥ 周末当前回落，且不
     const w = Summary.weekSummary(s, t);
     const endAssets = s.equity[t * Config.daysPerTurn].assets;
     let peak = -Infinity; for (let d = 0; d <= t * Config.daysPerTurn; d++) peak = Math.max(peak, s.equity[d].assets);
-    assert.ok(w.weekDrawdown >= (peak - endAssets) / peak - 1e-12, '周内最深回落不应小于周末的回落');
-    assert.ok(w.weekDrawdown <= w.maxDrawdownSoFar + 1e-12);
-    assert.ok(Math.abs(w.maxDrawdownSoFar - State.maxDrawdown(s.equity.slice(0, t * Config.daysPerTurn + 1))) < 1e-12);
+    assert.ok(w.weekDrawdown <= w.maxDrawdownSoFar + 1e-12);     // 当前回落不超过历史最大
+    assert.ok(Math.abs(w.maxDrawdownSoFar - State.excessDrawdown(s, t * Config.daysPerTurn)) < 1e-12);
   }
 });
 
@@ -499,4 +504,28 @@ test('新闻：同一周同一家公司不会同时出现方向相反的两条',
     }
   }
   assert.ok(twoEvent > 20, '样本里应有足够多的同周双事件');
+});
+
+test('超额回撤：按周收盘、相对基准净值；大盘下跌时少跌不扣分；盘中回落不计', () => {
+  const real = State.newGame(3);
+  const ids = Object.keys(real.companies);
+  const sizes = ids.map((id) => ({ id, side: 'buy', shares: 100 }));
+  // 1) 空仓躺平：绝对回撤为 0，超额回撤非负
+  let s = real;
+  for (let t = 1; t <= 6; t++) s = State.advanceTurn(s, {});
+  assert.ok(State.excessDrawdown(s, s.equity.length - 1) >= 0);
+  // 3) 盘中不计：把某个非周收盘日的资产砸低，超额回撤不变
+  let a = State.newGame(7);
+  a = State.advanceTurn(a, { orders: sizes });
+  a = State.advanceTurn(a, {});
+  const d = a.equity.length - 1;
+  const before = State.excessDrawdown(a, d);
+  const hacked = JSON.parse(JSON.stringify(a));
+  const mid = Config.daysPerTurn + 2;                      // 第 2 周的周中某一天，不是周收盘
+  hacked.equity[mid].assets *= 0.5;
+  assert.equal(State.excessDrawdown(hacked, d), before);
+  // 4) 周收盘点被砸低则会计入
+  const hacked2 = JSON.parse(JSON.stringify(a));
+  hacked2.equity[Config.daysPerTurn].assets *= 0.5;
+  assert.ok(State.excessDrawdown(hacked2, d) > before);
 });
