@@ -248,3 +248,16 @@ button.small { padding: 1px 7px; font-size: 11px; }
 .pen { color: #ff1744 !important; font-weight: 700; }
 .meter.dd-warn .dd-val { color: #ff1744; }
 .meter.dd-warn .m-fill.dd { background: #ff1744; }
+
+/* 评分条：本季度为主，总分/等级为次 */
+.sp { color: #ffb300; font-weight: 700; }
+.sc-quarter { display: grid; grid-template-columns: auto auto 1fr; gap: 2px 24px; align-items: baseline; padding-bottom: 4px; border-bottom: 1px dashed var(--line); margin-bottom: 4px; font-size: 13px; }
+.sc-quarter .scq-head { grid-column: 1; }
+.sc-quarter .scq-score { grid-column: 2; }
+.sc-quarter .scq-target { grid-column: 3; }
+.sc-quarter .scq-diff { grid-column: 1 / -1; font-size: 12px; }
+.scq-num { font-size: 24px; font-family: var(--mono); }
+.sc-sub { font-size: 12px; opacity: .92; }
+.sc-sub .sc-total { font-size: 14px; }
+.grade-pill.g-none { background: #333; color: #aaa; }
+.q-note { margin: 6px 0; padding: 6px 10px; background: #1a1a1a; border-left: 3px solid var(--accent); font-size: 13px; line-height: 1.6; }

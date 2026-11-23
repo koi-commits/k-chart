@@ -529,3 +529,31 @@ test('超额回撤：按周收盘、相对基准净值；大盘下跌时少跌�
   hacked2.equity[Config.daysPerTurn].assets *= 0.5;
   assert.ok(State.excessDrawdown(hacked2, d) > before);
 });
+
+test('summary.progress：季度目标、封顶/触底、开局未开始、距下一等级过远时标记', () => {
+  const Summary = G('summary.js'), Sc = G('scoring.js'), Q = Config.scoring.quarter;
+  let s = State.newGame(5);
+  let p = Summary.progress(s);
+  assert.equal(p.started, false); assert.equal(p.quarter.limit, null);
+  assert.equal(p.quarter.gapToBase, 0); assert.equal(p.quarter.targetCap, (Q.max - Q.beatBase) / Q.perPoint);
+  assert.ok(Math.abs(p.room - (Sc.bestPossible([], 0) - p.score.total)) < 1e-9);
+  s = State.advanceTurn(s, {});
+  p = Summary.progress(s);
+  assert.equal(p.started, true);
+  // 空仓：第一周基准涨则本季度落后，gapToBase = 落后的点数
+  const diff = p.quarter.diff;
+  assert.ok(Math.abs(p.quarter.gapToBase - Math.max(0, -diff)) < 1e-12);
+  assert.equal(p.nextTooFar, !!(p.score.next && p.score.next.need > p.room / 2));
+  // 封顶 / 触底：用一个让某季度超额极大/极小的构造（改 benchStart 让基准暴跌/暴涨）
+  const up = JSON.parse(JSON.stringify(s)); for (const id of Object.keys(up.benchStart)) up.benchStart[id] *= 0.2;    // 基准起点很低 → 这里让"玩家"看起来基准暴涨
+  const pu = Summary.progress(up);
+  assert.ok(pu.quarter.score <= Q.min + 1e-9 ? pu.quarter.limit === 'min' : pu.quarter.limit === null);
+});
+
+test('quarterNote：赚钱却跑输基准、亏钱却跑赢基准都要讲清楚', () => {
+  const Summary = G('summary.js');
+  assert.match(Summary.quarterNote(4.58, 6.54), /你赚了.*基准赚了.*少赚 1\.96 点.*没有基础分/);
+  assert.match(Summary.quarterNote(-2, -5), /你亏了.*基准亏了.*少亏了 3\.00 点.*仍然拿到基础分/);
+  assert.match(Summary.quarterNote(5, 3), /多赚 2\.00 点/);
+  assert.match(Summary.quarterNote(-6, -3), /多亏 3\.00 点/);
+});

@@ -50,7 +50,21 @@
       }))
     };
     const dd = GameScoring.drawdownPenalty(dInfo.max);
+    // 本季度目标：超额 > 0 拿基础分；超额达到 (上限 − 基础分)/每点分数 即拿满
+    const QC = GameConfig.scoring.quarter;
+    Object.assign(quarter, {
+      scoreMax: QC.max, scoreMin: QC.min, beatBase: QC.beatBase,
+      limit: quarter.score >= QC.max ? 'max' : quarter.score <= QC.min ? 'min' : null,
+      targetCap: QC.perPoint > 0 ? (QC.max - QC.beatBase) / QC.perPoint : null,   // 拿满所需的超额（百分点）
+      gapToBase: Math.max(0, -cur.diff),
+      gapToCap: QC.perPoint > 0 ? Math.max(0, (QC.max - QC.beatBase) / QC.perPoint - cur.diff) : null
+    });
+    // 剩余回合理论上还能再拿多少分（剩余季度与终局都拿上限）；距下一等级太远时界面不再显示"还差 X 分"
+    const doneScores = done.map((x) => GameScoring.quarterScore(x.diff).score);
+    const room = Math.max(0, GameScoring.bestPossible(doneScores, dInfo.max) - sc.total);
+    const next = GameScoring.nextGrade(sc.total);
     return {
+      started: d > 0, room, nextTooFar: !!(next && next.need > room / 2),
       assets, returnPct: (assets / GameConfig.initialCash - 1) * 100, benchPct: bench,
       maxDD: dInfo.max, curDD: dInfo.cur, absMaxDD: GameState.maxDrawdown(eq),
       ddThreshold: GameConfig.scoring.drawdown.threshold, ddPenalty: dd.penalty, ddCapped: dd.capped,
@@ -58,6 +72,21 @@
         quarterTotal: sc.quarterTotal, final: sc.final.score, finalExcess: sc.final.excess, penalty: sc.drawdown.penalty },
       quarter
     };
+  }
+
+  /** 季度成绩单里解释"为什么赚钱却扣分 / 亏钱却加分"的一句话：只用本季度的绝对收益率与基准收益率 */
+  function quarterNote(playerPct, benchPct) {
+    const f = (v) => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2) + '%';
+    const diff = playerPct - benchPct, ad = Math.abs(diff).toFixed(2);
+    const you = playerPct >= 0 ? `你赚了 ${f(playerPct)}` : `你亏了 ${f(playerPct)}`;
+    const bm = benchPct >= 0 ? `基准赚了 ${f(benchPct)}` : `基准亏了 ${f(benchPct)}`;
+    if (diff > 0) return playerPct < 0
+      ? `${you}，但${bm}，你比基准少亏了 ${ad} 点，所以仍然拿到基础分：评分只看相对基准，不看绝对盈亏。`
+      : `${you}，${bm}，比基准多赚 ${ad} 点，拿到基础分与超额加分。`;
+    if (diff < 0) return playerPct > 0
+      ? `${you}，但${bm}，比基准少赚 ${ad} 点，所以本季度没有基础分、还会被扣分：评分只看相对基准，不看绝对盈亏。`
+      : `${you}，${bm}，比基准多亏 ${ad} 点，没有基础分并被扣分。`;
+    return `${you}，与基准完全持平，没有超额。`;
   }
 
   /**
@@ -138,5 +167,5 @@
     };
   }
 
-  return { progress, outlook, weekSummary, historyOf, newsAtStart, newsSinceResearch, turnStartIdx };
+  return { progress, outlook, quarterNote, weekSummary, historyOf, newsAtStart, newsSinceResearch, turnStartIdx };
 });

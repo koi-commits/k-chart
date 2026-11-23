@@ -5,6 +5,8 @@ const GameView = (() => {
   const money = (n) => '¥' + fmt(n);
   const pct = (x, d = 2) => (x >= 0 ? '+' : '') + (x * 100).toFixed(d) + '%';
   const cls = (x) => (x > 0 ? 'up' : x < 0 ? 'down' : '');
+  /** 分数的颜色：加分金色、扣分红色（不用红涨绿跌：红色在这里只表示扣分，绿色不用来表示扣分） */
+  const scls = (x) => (x > 0.0005 ? 'sp' : x < -0.0005 ? 'pen' : '');
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   /** 取前 upto 根（默认全部）K线的现价/昨收 */
@@ -44,12 +46,28 @@ const GameView = (() => {
     const seg = (from, to, g) => `<div class="g-seg g-${g}" style="left:${X(from)}%;width:${X(to) - X(from)}%"><span>${g}</span></div>`;
     const ruler = `<div class="g-ruler">${seg(lo, G.C, 'D')}${seg(G.C, G.B, 'C')}${seg(G.B, G.A, 'B')}${seg(G.A, G.S, 'A')}${seg(G.S, hi, 'S')}<div class="g-mark" style="left:${X(sc.total)}%"></div></div>
       <div class="g-lines">${['C', 'B', 'A', 'S'].map((g) => `<span style="left:${X(G[g])}%">${g} ${G[g]}</span>`).join('')}</div>`;
-    const nextTxt = sc.next ? `距 <b class="grade-txt g-${sc.next.grade}">${sc.next.grade}</b> 还差 <b>${sc.next.need.toFixed(1)}</b> 分` : '<b class="grade-txt g-S">已是最高等级 S</b>';
+    const started = p.started;
+    const gradeHtml = started ? `<b class="grade-pill g-${sc.grade}">${GRADE_NAME[sc.grade]}</b> <span class="muted">${sc.pass ? '过关线以上' : '未到过关线 B'}</span>` : '<b class="grade-pill g-none">—</b> <span class="muted">第 1 回合结束后显示</span>';
+    // 距下一等级：差距超过剩余回合理论上还能拿到的分数的一半时不再显示（只看本季度目标）
+    const nextTxt = !started ? '' : !sc.next ? '<b class="grade-txt g-S">已是最高等级 S</b>'
+      : p.nextTooFar ? '' : `距 <b class="grade-txt g-${sc.next.grade}">${sc.next.grade}</b> 还差 <b>${sc.next.need.toFixed(1)}</b> 分`;
+    // 本季度：目前得分 + 目标
+    const qtarget = Q.limit === 'max' ? `<b class="sp">本季度已封顶</b> <span class="muted">（上限 ${Q.scoreMax} 分，再多赚也不加分）</span>`
+      : Q.limit === 'min' ? `<b class="pen">本季度已触底</b> <span class="muted">（下限 ${Q.scoreMin} 分，再多亏也不再多扣）</span>`
+      : (Q.diff <= 0
+        ? `目标：超额 &gt; 0 即得基础分 <b>+${Q.beatBase}</b>${Q.gapToBase > 0 ? `（还差 <b>${Q.gapToBase.toFixed(2)}</b> 点）` : ''}`
+        : `已拿到基础分 <b>+${Q.beatBase}</b>`)
+        + (Q.targetCap != null ? `；超额达 <b>${sgn(Q.targetCap, 0)} 点</b>拿满 <b>${Q.scoreMax}</b>${Q.gapToCap > 0 ? `（还差 ${Q.gapToCap.toFixed(2)} 点）` : ''}` : '');
     const scoreHtml = `<div class="scorebar">
-      <div class="sc-main">
-        <span class="sc-item">当前总分${T(`总分 = 4 个季度分 + 终局分 − 回撤扣分。这里是"如果现在结束"的得分：已完成季度的得分 + 进行中季度目前的得分 + 按当前全局超额算的终局分 − 回撤扣分（当前 ${sgn(sc.quarterTotal)} ${sgn(sc.final)} −${sc.penalty.toFixed(1)}）。`)} <b class="sc-total">${sgn(sc.total)}</b></span>
-        <span class="sc-item">预估等级${T(`按总分评级：S ≥ ${G.S}，A ≥ ${G.A}，B ≥ ${G.B}，C ≥ ${G.C}，更低为 D。B 及以上视为过关。分数线是游戏平衡测试里研究型玩家的得分分布定的。`)} <b class="grade-pill g-${sc.grade}">${GRADE_NAME[sc.grade]}</b> <span class="muted">${sc.pass ? '过关线以上' : '未到过关线 B'}</span></span>
-        <span class="sc-item">本季度目前得分${T(`季度分：本季度你的收益率比基准高就得 ${C.quarter.beatBase} 分基础分，超额每 1 个百分点再 ${C.quarter.perPoint >= 0 ? '加' : '减'} ${Math.abs(C.quarter.perPoint)} 分（超额为负则按同样比例扣分）；单季度限制在 ${C.quarter.min} 到 ${C.quarter.max} 分之间，防止一个季度决定整局。`, 'r')} <b class="${cls(Q.score)}">${sgn(Q.score)}</b></span>
+      <div class="sc-quarter">
+        <div class="scq-head">第 <b>${Q.q}</b>/${Q.total} 季度 · 第 <b>${Q.turnInQuarter}</b>/${Q.length} 回合${T(`每 ${Q.length} 回合是一个季度，共 ${Q.total} 个季度，季度末结算一次季度分：你的季度收益率比基准同一季度高就得 ${C.quarter.beatBase} 分基础分，超额每 1 个百分点再${C.quarter.perPoint >= 0 ? '加' : '减'} ${Math.abs(C.quarter.perPoint)} 分（超额为负则按同样比例扣分）；单季度限制在 ${C.quarter.min} 到 ${C.quarter.max} 分之间。每个季度都是一个新的起点。`)}</div>
+        <div class="scq-score"><span class="muted">本季度目前得分</span> <b class="scq-num ${scls(Q.score)}">${sgn(Q.score)}</b></div>
+        <div class="scq-target">${qtarget}</div>
+        <div class="scq-diff muted">本季度相对基准 <b class="${cls(Q.diff)}">${sgn(Q.diff)} 点</b>（你 ${sgn(Q.playerPct)}% / 基准 ${sgn(Q.benchPct)}%）</div>
+      </div>
+      <div class="sc-main sc-sub">
+        <span class="sc-item">总分（若现在结束）${T(`总分 = 4 个季度分 + 终局分 − 回撤扣分，最低 ${C.totalMin}。这里是"如果现在结束"的得分：已完成季度的得分 + 进行中季度目前的得分 + 按当前全局超额算的终局分 − 回撤扣分（当前 ${sgn(sc.quarterTotal)} ${sgn(sc.final)} −${sc.penalty.toFixed(1)}）。`)} <b class="sc-total ${scls(sc.total)}">${sgn(sc.total)}</b></span>
+        <span class="sc-item">预估等级${T(`按总分评级：S ≥ ${G.S}，A ≥ ${G.A}，B ≥ ${G.B}，C ≥ ${G.C}，更低为 D。B 及以上视为过关。分数线是游戏平衡测试里研究型玩家的得分分布定的。`)} ${gradeHtml}</span>
         <span class="sc-item sc-next">${nextTxt}</span>
       </div>${ruler}</div>`;
 
@@ -71,8 +89,7 @@ const GameView = (() => {
         <div class="m-tick limit" style="left:${ddPct(p.ddThreshold)}%" title="超过 ${(p.ddThreshold * 100).toFixed(0)}% 开始扣分"></div></div></div>`;
     const pills = Q.pills.map((k, i) => `<span class="q-pill ${k.state}" title="第 ${i + 1} 季度${k.state === 'done' ? '（已结束）' : k.state === 'cur' ? '（进行中，得分为目前的）' : ''}">${i + 1}${k.state === 'future' ? ' ·' : ` <b>${sgn(k.score)}</b>`}</span>`).join('');
     const qHtml = `<div class="meter quarter">
-      <div class="m-head"><span>季度考核${T(`每 ${Q.length} 回合为一个季度，共 ${Q.total} 个季度。每个季度末结算一次季度分：你的季度收益率与基准同一季度比较，跑赢得基础分，超额再按百分点加分。下面四格是各季度的得分。`)} · 第 <b>${Q.q}</b>/${Q.total} 季度 第 <b>${Q.turnInQuarter}</b>/${Q.length} 回合　本季度相对基准 <b class="${cls(Q.diff)}">${sgn(Q.diff)} 点</b> <span class="muted">（你 ${sgn(Q.playerPct)}% / 基准 ${sgn(Q.benchPct)}%）</span></span>
-        <span class="muted">已结束 ${Q.completed}/${Q.total} 个季度</span></div>
+      <div class="m-head"><span>四个季度的得分</span><span class="muted">已结束 ${Q.completed}/${Q.total} 个季度</span></div>
       <div class="q-pills">${pills}</div></div>`;
     $('goalBox').innerHTML = scoreHtml + retHtml + ddHtml + qHtml;
   }
@@ -263,12 +280,12 @@ const GameView = (() => {
     const F = GameConfig.scoring.final, D = GameConfig.scoring.drawdown;
     const rows = Array.from({ length: GameConfig.quarters }, (_, i) => {
       const x = sc.quarters[i];
-      return x ? `<tr><td>第 ${i + 1} 季度分</td><td class="l">${quarterParts(x)}</td><td class="${cls(x.score)}"><b>${sg1(x.score)}</b></td></tr>`
+      return x ? `<tr><td>第 ${i + 1} 季度分</td><td class="l">${quarterParts(x)}</td><td class="${scls(x.score)}"><b>${sg1(x.score)}</b></td></tr>`
         : `<tr><td>第 ${i + 1} 季度分</td><td class="l muted">${opts && opts.partial ? '尚未结束' : '未打到'}</td><td class="muted">—</td></tr>`;
     }).join('');
     const fin = sc.final;
     return `<table class="qtable"><tr><th>项目</th><th class="l">构成</th><th>得分</th></tr>${rows}
-      <tr><td>终局分</td><td class="l">全局超额 ${sg2(fin.excess)} 点 × ${F.perPoint} = ${sg2(fin.raw)}${fin.clamped ? `　→ 触及${fin.raw > fin.score ? '上' : '下'}限 ${fin.score}` : ''}</td><td class="${cls(fin.score)}"><b>${sg1(fin.score)}</b></td></tr>
+      <tr><td>终局分</td><td class="l">全局超额 ${sg2(fin.excess)} 点 × ${F.perPoint} = ${sg2(fin.raw)}${fin.clamped ? `　→ 触及${fin.raw > fin.score ? '上' : '下'}限 ${fin.score}` : ''}</td><td class="${scls(fin.score)}"><b>${sg1(fin.score)}</b></td></tr>
       <tr><td>回撤扣分</td><td class="l">超额回撤 ${(sc.drawdown.maxDD * 100).toFixed(2)}%（相对基准净值从最高点回落），超过 ${(D.threshold * 100).toFixed(0)}% 的部分 ${sc.drawdown.overPoints.toFixed(2)} 个百分点 × ${D.perPoint}${sc.drawdown.capped ? `　→ 触及扣分上限 ${D.maxPenalty}` : ''}</td><td class="${sc.drawdown.penalty > 0 ? 'pen' : ''}"><b>${sc.drawdown.penalty > 0 ? '−' : ''}${sc.drawdown.penalty.toFixed(1)}</b></td></tr>
       <tr class="qt-total"><td>${opts && opts.partial ? '目前总分（若现在结束）' : '总分'}</td><td class="l">季度分合计 ${sg1(sc.quarterTotal)} ＋ 终局分 ${sg1(fin.score)} − 回撤扣分 ${sc.drawdown.penalty.toFixed(1)}${sc.totalFloored ? `　→ 触及总分下限 ${GameConfig.scoring.totalMin}` : ''}</td><td><b>${sg1(sc.total)}</b></td></tr></table>`;
   }
@@ -285,8 +302,9 @@ const GameView = (() => {
       <div class="sub">本季度你的收益率与等权基准的本季度收益率比较（基准在季度内同样是一直持有）。</div>
       <div class="wk-big"><div><span>你的本季度收益率</span><b class="${cls(qa.playerPct)}">${sg2(qa.playerPct)}%</b></div>
         <div><span>基准本季度收益率</span><b class="${cls(qa.benchPct)}">${sg2(qa.benchPct)}%</b></div>
-        <div><span>本季度超额</span><b class="${cls(x.excess)}">${sg2(x.excess)} 点</b></div>
-        <div><span>本季度得分</span><b class="${cls(x.score)}">${sg1(x.score)}</b></div></div>
+        <div><span>两者之差（超额）</span><b class="${cls(x.excess)}">${sg2(x.excess)} 点</b></div>
+        <div><span>本季度得分</span><b class="${scls(x.score)}">${sg1(x.score)}</b></div></div>
+      <div class="q-note">${GameSummary.quarterNote(qa.playerPct, qa.benchPct)}</div>
       <div style="margin-bottom:6px;font-size:13px" class="muted">得分构成：${quarterParts(x)}</div>
       ${scoreTableHtml(sc, { partial: true })}
       <div style="margin:6px 0 4px">按目前的总分，预估等级 <b class="grade-pill g-${sc.grade}">${sc.grade}</b>（${sc.pass ? '已在过关线 B 以上' : `过关线 B = ${lines.B} 分`}）。${nxt ? `距 ${nxt.grade} 还差 <b>${nxt.need.toFixed(1)}</b> 分。` : '已是最高等级。'}</div>
@@ -319,7 +337,7 @@ const GameView = (() => {
         <div><span>超额回撤${GameTips.tip('你的总资产相对基准净值，从历史最高点回落的最大幅度（按每周收盘），参与回撤扣分。账户自身的最大回撤是 ' + (r.maxDrawdown * 100).toFixed(2) + '%，只供参考。', 'r')}</span><b class="pen">${(r.excessDrawdown * 100).toFixed(2)}%</b></div>
       </div>
       <div class="grade-hero"><div class="gh-grade g-${r.grade}">${r.grade}</div>
-        <div><div class="gh-total">总分 <b>${sg1(r.score.total)}</b></div>
+        <div><div class="gh-total">总分 <b class="${scls(r.score.total)}">${sg1(r.score.total)}</b></div>
           <div class="${r.pass ? 'up' : 'muted'}" style="font-size:15px"><b>${r.pass ? '✔ 过关' : '✘ 未过关'}</b> <span class="muted" style="font-size:12px">（B 及以上过关；等级线 S ${GameConfig.scoring.grades.S} / A ${GameConfig.scoring.grades.A} / B ${GameConfig.scoring.grades.B} / C ${GameConfig.scoring.grades.C}）${bust ? '　中途判负：一律评为 D' : ''}</span></div></div></div>
       ${scoreTableHtml(r.score)}
       <div class="muted" style="margin-bottom:6px">真相揭晓：每家公司的真实价值</div>
