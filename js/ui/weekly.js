@@ -24,7 +24,7 @@ const GameWeekly = (() => {
     return `<div class="wk-big"><div><span>本周总盈亏</span><b class="${cls(w.total)}">${money(w.total)}</b></div>
         <div><span>本周费用</span><b>¥${fmt(w.fees)}</b></div>
         <div><span>周末总资产</span><b>¥${fmt(w.assetsEnd)}</b></div></div>
-      <table class="wk-table"><tr><th>公司</th><th>本周股价</th><th>周末持仓</th><th>本周盈亏</th></tr>${rows}</table>
+      <table class="wk-table"><tr><th>公司</th><th>本周累计涨跌${GameTips.tip('本周五收盘价相对上周五收盘价的涨跌，即一整周的累计涨跌。左侧公司列表里的"最近一日"只是最后一天的变化。')}</th><th>周末持仓</th><th>本周盈亏${GameTips.tip('本周总资产的变化里，这家公司贡献的部分（含买卖、持仓价格变化和手续费）。')}</th></tr>${rows}</table>
       <div class="wk-sec"><h4>成交</h4>${tr}${failed}</div>
       <div class="wk-sec"><h4>本周新闻</h4><ul class="wk-news">${news}</ul></div>`;
   }

@@ -18,8 +18,8 @@ const GameHistory = (() => {
     const chips = Array.from({ length: max }, (_, i) => i + 1).map((t) =>
       `<button class="chip ${t === turn ? 'active' : ''}" data-action="hist-go" data-turn="${t}">${t}</button>`).join('');
     const rs = h.research.length
-      ? `<table class="wk-table"><tr><th>公司</th><th>投入</th><th>估值</th><th>误差范围</th></tr>${h.research.map((r) =>
-          `<tr><td>${r.name}</td><td>${r.points} 点</td><td>¥${fmt(r.estimate)}</td><td class="muted">±${(r.sigma * 100).toFixed(0)}%</td></tr>`).join('')}</table>`
+      ? `<table class="wk-table"><tr><th>公司</th><th>投入</th><th>估值</th><th>约 68% 把握的区间${GameTips.tip('真实价值约有 68% 的把握落在这个区间内；投入的研究点越多，区间越窄。')}</th></tr>${h.research.map((r) =>
+          `<tr><td>${r.name}</td><td>${r.points} 点</td><td>¥${fmt(r.estimate)}</td><td class="muted">¥${fmt(r.estimate * Math.exp(-r.sigma))} – ¥${fmt(r.estimate * Math.exp(r.sigma))}</td></tr>`).join('')}</table>`
       : '<div class="muted">这一回合没有做研究。</div>';
     const el = document.getElementById('history');
     el.innerHTML = `<div class="card history-card">

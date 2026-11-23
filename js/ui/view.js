@@ -11,7 +11,8 @@ const GameView = (() => {
   function quote(state, id, upto) {
     const c = state.candles[id];
     const n = upto == null ? c.length : upto;
-    return { price: c[n - 1].close, prev: n >= 2 ? c[n - 2].close : c[n - 1].open };
+    // week：近一周（最近 5 个交易日）累计涨跌，与回合小结里的"本周累计涨跌"同口径
+    return { price: c[n - 1].close, prev: n >= 2 ? c[n - 2].close : c[n - 1].open, week: c[n - 1].close / c[Math.max(0, n - 1 - GameConfig.daysPerTurn)].close - 1 };
   }
 
   function assetsAt(state, upto) {
@@ -37,9 +38,10 @@ const GameView = (() => {
     const X = (v) => ((v - lo) / (hi - lo)) * 100;
     const zero = X(0), cur = X(p.returnPct);
     const sg = (v) => (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+    const T = GameTips.tip, Xm = GameConfig.winMarginPct, Yp = (GameConfig.winMaxDrawdown * 100).toFixed(0);
     const retHtml = `<div class="meter ${p.returnReached ? 'reached' : ''}">
-      <div class="m-head"><span>收益率 <b class="${cls(p.returnPct)}">${sg(p.returnPct)}</b></span>
-        <span class="muted">目标 <b class="gold">${sg(p.targetPct)}</b>（基准 ${sg(p.benchPct)} + ${GameConfig.winMarginPct}）${p.returnReached ? ' <b class="up">✔ 已达标</b>' : ''}</span></div>
+      <div class="m-head"><span>收益率 <b class="${cls(p.returnPct)}">${sg(p.returnPct)}</b>${T(`你的总资产相对本金 ¥${GameConfig.initialCash.toLocaleString('zh-CN')} 的涨跌幅。胜利要求它不低于"目标线"。`)}</span>
+        <span class="muted">目标 <b class="gold">${sg(p.targetPct)}</b>${T(`目标线 = 基准收益率 + ${Xm} 个百分点。基准每周都在变，所以目标线会跟着移动。`, 'r')}（基准${T('基准 = 开局第一天把本金平均买入 4 家公司并一直持有的收益率（不计手续费）。它代表"什么都不琢磨"的人的成绩。', 'r')} ${sg(p.benchPct)} + ${Xm}）${p.returnReached ? ' <b class="up">✔ 已达标</b>' : ''}</span></div>
       <div class="m-track"><div class="m-zero" style="left:${zero}%"></div>
         <div class="m-fill ${p.returnPct >= 0 ? 'pos' : 'neg'}" style="left:${Math.min(zero, cur)}%;width:${Math.abs(cur - zero)}%"></div>
         <div class="m-tick bench" style="left:${X(p.benchPct)}%" title="等权基准 ${sg(p.benchPct)}"></div>
@@ -47,7 +49,7 @@ const GameView = (() => {
     const ddMax = p.ddLimit * 1.25, ddPct = (v) => Math.min(100, (v / ddMax) * 100);
     const note = p.ddLevel === 'over' ? '<b class="dd-over">已超上限，本局无法获胜</b>' : p.ddLevel === 'warn' ? '<b class="dd-warn">接近上限！</b>' : '';
     const ddHtml = `<div class="meter dd-${p.ddLevel}">
-      <div class="m-head"><span>最大回撤 <b class="dd-val">${(p.maxDD * 100).toFixed(1)}%</b> <span class="muted">（当前距高点 ${(p.curDD * 100).toFixed(1)}%）</span> ${note}</span>
+      <div class="m-head"><span>最大回撤 <b class="dd-val">${(p.maxDD * 100).toFixed(1)}%</b>${T(`从总资产历史最高点回落的最大幅度（按每日总资产计算）。整局必须低于 ${Yp}% 才算胜利。"当前距高点"是此刻离最高点已经回落了多少；"最大回撤"是历史上回落得最深的一次，只增不减。`)} <span class="muted">（当前距高点 ${(p.curDD * 100).toFixed(1)}%）</span> ${note}</span>
         <span class="muted">上限 <b>${(p.ddLimit * 100).toFixed(0)}%</b>，须低于此值</span></div>
       <div class="m-track"><div class="m-fill dd" style="left:0;width:${ddPct(p.maxDD)}%"></div>
         <div class="m-tick limit" style="left:${ddPct(p.ddLimit)}%" title="回撤上限 ${(p.ddLimit * 100).toFixed(0)}%"></div></div></div>`;
@@ -55,26 +57,43 @@ const GameView = (() => {
     const pillTxt = { beat: '✔', miss: '✘', cur: '●', future: '·' };
     const pills = Q.pills.map((k, i) => `<span class="q-pill ${k}" title="第 ${i + 1} 季度">${i + 1}${pillTxt[k]}</span>`).join('');
     const qHtml = `<div class="meter quarter ${Q.impossible ? 'q-impossible' : ''}">
-      <div class="m-head"><span>季度考核 · 第 <b>${Q.q}</b>/${Q.total} 季度 第 <b>${Q.turnInQuarter}</b>/${Q.length} 回合　本季度相对基准 <b class="${cls(Q.diff)}">${sgp(Q.diff)} 点</b> <span class="muted">（你 ${sgp(Q.playerPct)}% / 基准 ${sgp(Q.benchPct)}%）</span></span>
+      <div class="m-head"><span>季度考核${T(`每 ${Q.length} 回合为一个季度，共 ${Q.total} 个季度。某季度你的收益率高于基准同一季度的收益率，就算"跑赢"。${Q.total} 个季度中至少跑赢 ${Q.need} 个才能胜利。`)} · 第 <b>${Q.q}</b>/${Q.total} 季度 第 <b>${Q.turnInQuarter}</b>/${Q.length} 回合　本季度相对基准 <b class="${cls(Q.diff)}">${sgp(Q.diff)} 点</b> <span class="muted">（你 ${sgp(Q.playerPct)}% / 基准 ${sgp(Q.benchPct)}%）</span></span>
         <span>已跑赢 <b>${Q.beaten}/${Q.total}</b> 个季度 <span class="muted">（至少 ${Q.need}）</span> ${Q.impossible ? '<b class="dd-over">季度条件已无法满足</b>' : ''}</span></div>
       <div class="q-pills">${pills}</div></div>`;
     $('goalBox').innerHTML = retHtml + ddHtml + qHtml;
   }
 
+  /** 估值区间：真实价值约有 68% 的把握落在 [估值·e^-σ, 估值·e^σ] 内（σ = 研究误差的标准差） */
+  function rangeOf(est) { return { lo: est.estimate * Math.exp(-est.sigma), hi: est.estimate * Math.exp(est.sigma) }; }
+
+  /** 区间条：金色段 = 约 68% 把握区间，竖线 = 估值，白色三角 = 现价 */
+  function rangeBar(est, price, big) {
+    const { lo, hi } = rangeOf(est);
+    const min = Math.min(lo, price) * 0.97, max = Math.max(hi, price) * 1.03;
+    const X = (v) => ((v - min) / (max - min)) * 100;
+    return `<div class="rbar ${big ? 'big' : ''}" title="区间 ¥${fmt(lo)} – ¥${fmt(hi)}：真实价值约 68% 的把握在此区间内">
+      <div class="rb-track"><div class="rb-range" style="left:${X(lo)}%;width:${X(hi) - X(lo)}%"></div><div class="rb-est" style="left:${X(est.estimate)}%"></div><div class="rb-px" style="left:${X(price)}%"></div></div>
+      <div class="rb-lbl"><span>¥${fmt(lo)}</span><span class="muted">${big ? '约 68% 把握在此区间内' : '约68%把握'}</span><span>¥${fmt(hi)}</span></div></div>`;
+  }
+
   const staleBadge = (id) => `<button class="stale-badge" data-action="stale-news" data-id="${id}" title="点击查看是哪几条新闻">研究后出现相关新闻</button>`;
 
+  const TIP_DAY = '最近一个交易日相对前一个交易日的涨跌（这是按周玩的游戏，所以只是上周最后一天的变化）。';
+  const TIP_WEEK = '最近 5 个交易日（一周）的累计涨跌，口径和回合小结里的“本周累计涨跌”一致。';
+
   function renderCompanies(state, ui, upto) {
-    $('companyList').innerHTML = Object.keys(state.companies).map((id) => {
+    $('companyList').innerHTML = Object.keys(state.companies).map((id, idx) => {
       const co = state.companies[id];
       const q = quote(state, id, upto);
       const chg = q.price / q.prev - 1;
       const pos = state.positions[id];
       const est = GameResearch.getEstimate(state, id);
       const raw = state.research[id];
-      let estHtml, premHtml = '';
+      let estHtml, premHtml = '', rangeHtml = '';
       const staleNews = est ? GameSummary.newsSinceResearch(state, id).length : 0;
       if (est) {
-        estHtml = `<span class="est-ok">估值 ${money(est.estimate)} ±${(est.sigma * 100).toFixed(0)}%</span><span>剩余 ${est.remaining} 回合</span>`;
+        estHtml = `<span class="est-ok">估值 ${money(est.estimate)}</span><span>剩余 ${est.remaining} 回合</span>`;
+        rangeHtml = rangeBar(est, q.price, false);
         premHtml = `<span>现价较估值</span><span class="${cls(q.price / est.estimate - 1)}">${pct(q.price / est.estimate - 1, 1)}</span>`;
       } else {
         estHtml = `<span class="est-none">${raw ? '估值已过期' : '未研究'}</span><span></span>`;
@@ -85,8 +104,10 @@ const GameView = (() => {
       return `<div class="company ${id === ui.selected ? 'active' : ''}" data-action="select" data-id="${id}">
         <div class="row1"><span><span class="name">${co.name}</span><span class="ind">${co.industryName}</span></span>
           <span class="price ${cls(chg)}">${fmt(q.price)}</span></div>
-        <div class="row2"><span>今日</span><span class="${cls(chg)}">${pct(chg)}</span></div>
+        <div class="row2"><span title="${TIP_DAY}">最近一日${idx === 0 ? GameTips.tip(TIP_DAY) : ''}</span><span class="${cls(chg)}">${pct(chg)}</span></div>
+        <div class="row2"><span title="${TIP_WEEK}">近一周${idx === 0 ? GameTips.tip(TIP_WEEK) : ''}</span><span class="${cls(q.week)}">${pct(q.week)}</span></div>
         <div class="row3">${estHtml}</div>
+        ${rangeHtml}
         ${premHtml ? `<div class="row4">${premHtml}</div>` : ''}
         ${staleNews ? staleBadge(id) : ''}
         <div class="row4">${posHtml}</div>
@@ -107,13 +128,15 @@ const GameView = (() => {
     const R = GameConfig.research;
     const left = state.pointsLeft;
     const n = Math.min(ui.researchN, Math.max(left, 1));
-    const sigmas = [1, 2, 3].map((p) => `${p}点 ±${(GameResearch.sigmaFor(p) * 100).toFixed(0)}%`).join('　');
+    const sigmas = [1, 2, 3].map((p) => `${p} 点约 ${(GameResearch.sigmaFor(p) * 100).toFixed(0)}%`).join('，');
+    const hint = GameTips.tip(`研究得到的是对"真实价值"的估计，带有随机误差：真实价值约有 68% 的把握落在区间内。投入的研究点越多，区间越窄（区间半宽：${sigmas}）。`);
     $('researchPanel').innerHTML = `<h3>🔬 研究 · ${co.name}</h3>
-      <div class="kv"><span>当前估值</span><b>${est ? money(est.estimate) + ` ±${(est.sigma * 100).toFixed(0)}%` : '—'}</b></div>
+      <div class="kv"><span>当前估值${hint}</span><b>${est ? money(est.estimate) : '—'}</b></div>
+      ${est ? rangeBar(est, quote(state, id).price, true) : ''}
       <div class="kv"><span>有效期</span><span>${est ? `剩余 ${est.remaining} 回合` : '无有效估值'}</span></div>
       ${est && GameSummary.newsSinceResearch(state, id).length ? `<div class="kv">${staleBadge(id)}</div>` : ''}
       <div class="kv"><span>本回合剩余研究点</span><b>${left}</b></div>
-      <div class="kv muted"><span>误差：${sigmas}</span></div>
+      <div class="kv muted"><span>区间半宽：${sigmas}</span></div>
       <div class="btns">
         <button data-action="rn" data-d="-1" ${n <= 1 || left < 1 ? 'disabled' : ''}>−</button>
         <b style="min-width:20px;text-align:center">${left < 1 ? 0 : n}</b>
@@ -150,9 +173,9 @@ const GameView = (() => {
     const L = limits(state, ui, id);
     $('orderPanel').innerHTML = `<h3>📝 下单 · ${co.name}</h3>
       <div class="kv"><span>参考价（上周收盘）</span><b>${fmt(L.price)}</b></div>
-      <div class="kv"><span>最多可买</span><span>${L.buyLots} 手</span></div>
+      <div class="kv"><span>最多可买</span><span>${L.buyLots} 手${GameTips.tip(`1 手 = ${GameConfig.lotSize} 股，买卖的最小单位。按参考价，1 手 ≈ ¥${fmt(L.price * GameConfig.lotSize)}。`, 'r')}</span></div>
       <div class="kv"><span>可卖</span><span>${L.sellLots} 手</span></div>
-      <div class="kv"><span>数量（手）</span><input type="number" id="lotsInput" min="1" step="1" value="${ui.lots}"></div>
+      <div class="kv"><span>数量（手${GameTips.tip(`1 手 = ${GameConfig.lotSize} 股。`)}）</span><input type="number" id="lotsInput" min="1" step="1" value="${ui.lots}"></div>
       <div class="btns">
         <button class="small" data-action="fill" data-k="0.25">1/4 仓</button>
         <button class="small" data-action="fill" data-k="0.5">半仓</button>

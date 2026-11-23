@@ -182,3 +182,20 @@ button.small { padding: 1px 7px; font-size: 11px; }
 .stale-badge:hover:not(:disabled) { background: rgba(255,183,77,.18); border-color: var(--warn); }
 .company .row4 .stale-badge { margin-top: 0; }
 .newspop-card { width: 560px; }
+
+/* 悬停说明 ⓘ */
+.tip { position: relative; display: inline-block; margin-left: 3px; width: 13px; height: 13px; line-height: 13px; text-align: center; font-size: 11px; font-style: normal; color: var(--muted); cursor: help; border-radius: 50%; }
+.tip:hover, .tip:focus { color: var(--accent); outline: none; }
+.tip::after { content: attr(data-tip); position: absolute; left: -6px; top: 19px; width: 250px; padding: 7px 9px; background: #000; border: 1px solid var(--accent); border-radius: 5px; color: var(--text); font-size: 12px; line-height: 1.5; font-weight: 400; white-space: normal; text-align: left; z-index: 50; display: none; box-shadow: 0 4px 14px rgba(0,0,0,.6); }
+.tip.tip-r::after { left: auto; right: -6px; }
+.tip:hover::after, .tip:focus::after { display: block; }
+.company .tip::after { width: 220px; }
+/* 估值区间条 */
+.rbar { margin: 4px 0 2px; }
+.rb-track { position: relative; height: 6px; background: #262626; border-radius: 3px; }
+.rb-range { position: absolute; top: 0; height: 100%; background: rgba(245,166,35,.45); border-radius: 3px; }
+.rb-est { position: absolute; top: -2px; width: 2px; height: 10px; margin-left: -1px; background: var(--accent); }
+.rb-px { position: absolute; top: -4px; width: 0; height: 0; margin-left: -4px; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 6px solid #fff; }
+.rb-lbl { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); font-family: var(--mono); margin-top: 3px; }
+.rbar.big .rb-track { height: 8px; } .rbar.big { margin: 6px 0 4px; } .rbar.big .rb-lbl { font-size: 11px; }
+#sidePanel .tip::after { width: 225px; }
