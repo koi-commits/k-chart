@@ -66,7 +66,7 @@ npm run build
 
 ```bash
 npm test                            # 单元测试
-node scripts/simulate.js            # 11 个 bot 各 1000 局，并输出验收结果
+node scripts/simulate.js            # 11 个 bot 各 1000 局，输出各等级比例、平均总分与验收结果
 node scripts/simulate.js 200 7      # 200 局，种子从 7 开始
 ```
 

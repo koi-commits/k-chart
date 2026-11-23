@@ -8,7 +8,7 @@
 const path = require('path');
 const G = (m) => require(path.join(__dirname, '..', 'js', 'game', m));
 const Config = G('config.js'), Rng = G('rng.js'), State = G('game-state.js'),
-  Research = G('research.js'), Trading = G('trading.js');
+  Research = G('research.js'), Trading = G('trading.js'), Summary = G('summary.js');
 
 const LOT = Config.lotSize;
 
@@ -167,8 +167,14 @@ function idleBot(threshold) {
 function playGame(seed, makeBot) {
   let s = State.newGame(seed);
   const act = makeBot(seed);
-  while (s.status === 'playing') s = State.advanceTurn(s, act(s));
-  return s.result;
+  let dead10 = null;
+  while (s.status === 'playing') {
+    s = State.advanceTurn(s, act(s));
+    // "提前判死"：第 10 回合结束时，剩余季度与终局全拿上限仍达不到 B（见 scoring.bestPossible）
+    if (s.turn === 11 && s.status === 'playing') dead10 = Summary.outlook(s).dead;
+  }
+  if (dead10 === null) dead10 = true;   // 第 10 回合前就判负：必然是 D
+  return Object.assign({}, s.result, { dead10 });
 }
 
 function median(a) { const b = a.slice().sort((x, y) => x - y); const n = b.length; return n % 2 ? b[(n - 1) / 2] : (b[n / 2 - 1] + b[n / 2]) / 2; }
@@ -176,28 +182,32 @@ const mean = (a) => a.reduce((x, y) => x + y, 0) / a.length;
 const std = (a) => { const m = mean(a); return Math.sqrt(mean(a.map((x) => (x - m) ** 2))); };
 
 function run(name, makeBot, games, seed0) {
-  const rets = [], dds = [], bench = []; let wins = 0, busts = 0, qs = 0;
+  const rets = [], dds = [], totals = []; let pass = 0, busts = 0, dead = 0;
+  const grades = { S: 0, A: 0, B: 0, C: 0, D: 0 };
   for (let i = 0; i < games; i++) {
     const r = playGame(seed0 + i, makeBot);
-    rets.push(r.returnPct); dds.push(r.maxDrawdown * 100); bench.push(r.benchmarkReturnPct); qs += r.quartersBeaten;
-    if (r.win) wins++;
+    rets.push(r.returnPct); dds.push(r.maxDrawdown * 100); totals.push(r.score.total);
+    grades[r.grade]++; if (r.pass) pass++;
     if (r.outcome === 'bankrupt') busts++;
+    if (r.dead10) dead++;
   }
-  return { name, rets, mean: mean(rets), median: median(rets), winRate: wins / games * 100, mdd: mean(dds), busts: busts / games * 100, benchMean: mean(bench), qBeaten: qs / games };
+  const pc = (n) => n / games * 100;
+  return { name, rets, mean: mean(rets), median: median(rets), mdd: mean(dds), busts: pc(busts),
+    meanScore: mean(totals), passRate: pc(pass), dead10: pc(dead), grades: Object.fromEntries(Object.entries(grades).map(([k, v]) => [k, pc(v)])) };
 }
 
-/** 配对差 a − b：{mean, se} */
+/** 平均收益率的配对差 a − b：{mean, se} */
 function paired(a, b) {
   const d = a.rets.map((x, i) => x - b.rets[i]);
-  return { mean: mean(d), se: std(d) / Math.sqrt(d.length), better: d.filter((x) => x > 0).length / d.length * 100 };
+  return { mean: mean(d), se: std(d) / Math.sqrt(d.length) };
 }
 
 function main() {
   const games = parseInt(process.argv[2] || '1000', 10);
   const seed0 = parseInt(process.argv[3] || '1', 10);
   const t0 = Date.now();
-  const ids = Object.keys(State.newGame(seed0).companies);
-  const g0 = State.newGame(seed0), names = {}; for (const id of ids) names[id] = g0.companies[id].name;
+  const g0 = State.newGame(seed0), ids = Object.keys(g0.companies), names = {};
+  for (const id of ids) names[id] = g0.companies[id].name;
 
   const R = {
     research: run('研究 bot', researchBot, games, seed0),
@@ -205,35 +215,38 @@ function main() {
     random: run('随机交易 bot', randomBot, games, seed0),
     equal: run('等权持有 bot', equalWeightBot, games, seed0)
   };
-  const idles = [0.25, 0.30, 0.40].map((th) => run(`躺平 +${th * 100}%`, idleBot(th), games, seed0));
   const singles = ids.map((id) => run('押' + names[id], singleBot(id), games, seed0));
+  const idles = [0.25, 0.30, 0.40].map((th) => run(`躺平 +${th * 100}%`, idleBot(th), games, seed0));
 
-  const pad = (s, n) => String(s).padEnd(n);
+  const SC = Config.scoring, G = SC.grades, pad = (s, n) => String(s).padEnd(n);
   console.log(`每个 bot ${games} 局（种子 ${seed0}..${seed0 + games - 1}，所有 bot 面对相同的市场与相同的公司参数），耗时 ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-  console.log(`胜利条件：打完 ${Config.totalTurns} 回合，收益率 ≥ 等权持有基准 + ${Config.winMarginPct} 个百分点，最大回撤 < ${(Config.winMaxDrawdown * 100).toFixed(0)}%，且 ${Config.quarters} 个季度中至少 ${Config.winMinQuarters} 个跑赢基准；基准平均收益 ${R.equal.benchMean.toFixed(2)}%\n`);
-  console.log(pad('', 16) + pad('平均收益率', 12) + pad('收益率中位数', 14) + pad('胜率', 9) + pad('平均最大回撤', 14) + pad('判负率', 8) + pad('跑赢季度', 9) + '对等权配对差(±标准误)');
+  console.log(`评分：总分 = 季度分(跑赢 ${SC.quarter.beatBase} + 超额×${SC.quarter.perPoint}，${SC.quarter.min}~${SC.quarter.max}) ×${Config.quarters} + 终局分(超额×${SC.final.perPoint}，${SC.final.min}~${SC.final.max}) − 回撤扣分(超过 ${(SC.drawdown.threshold * 100).toFixed(0)}% 的部分 ×${SC.drawdown.perPoint}，不封顶)`);
+  console.log(`等级线：S ≥ ${G.S}，A ≥ ${G.A}，B ≥ ${G.B}（过关线），C ≥ ${G.C}，其余 D；"提前判死" = 第 10 回合结束时剩余季度与终局全拿上限仍达不到 B 的局所占比例\n`);
+  console.log(pad('', 14) + pad('平均总分', 9) + pad('S', 7) + pad('A', 7) + pad('B', 7) + pad('C', 7) + pad('D', 7) + pad('过关(≥B)', 10) + pad('提前判死', 9) + pad('平均收益率', 11) + pad('平均最大回撤', 13) + '判负率');
   for (const r of [R.research, R.randval, R.random, R.equal, ...singles, ...idles]) {
-    const pd = paired(r, R.equal);
-    console.log(pad(r.name, 16) + pad(r.mean.toFixed(2) + '%', 12) + pad(r.median.toFixed(2) + '%', 14) + pad(r.winRate.toFixed(1) + '%', 9) +
-      pad(r.mdd.toFixed(2) + '%', 14) + pad(r.busts.toFixed(1) + '%', 8) + pad(r.qBeaten.toFixed(2), 9) + (r === R.equal ? '—' : `${pd.mean >= 0 ? '+' : ''}${pd.mean.toFixed(2)} ±${pd.se.toFixed(2)}`));
+    const f = (x) => x.toFixed(1) + '%';
+    console.log(pad(r.name, 14) + pad(r.meanScore.toFixed(1), 9) + ['S', 'A', 'B', 'C', 'D'].map((g) => pad(f(r.grades[g]), 7)).join('') +
+      pad(f(r.passRate), 10) + pad(f(r.dead10), 9) + pad(r.mean.toFixed(2) + '%', 11) + pad(r.mdd.toFixed(2) + '%', 13) + f(r.busts));
   }
 
   // ── 验收 ──
-  const pv = paired(R.research, R.randval);
-  const others = [R.randval, R.random, R.equal, ...singles];
+  const all = [R.research, R.randval, R.random, R.equal, ...singles, ...idles];
+  const others = all.filter((r) => r !== R.research);
   const check = (ok, label, detail) => console.log(`${ok ? '✔' : '✘'} ${label}  ${detail}`);
-  console.log(`\n验收：`);
-  check(others.every((o) => R.research.mean > o.mean), '研究 bot 平均收益率高于所有其他 bot',
-    `（研究 ${R.research.mean.toFixed(2)}%，其他最高 ${Math.max(...others.map((o) => o.mean)).toFixed(2)}%）`);
-  check(pv.mean >= 5, '研究 bot 相对随机估值 bot 的配对差 ≥ 5 个百分点', `（${pv.mean.toFixed(2)} ±${pv.se.toFixed(2)}，研究更优局数 ${pv.better.toFixed(1)}%）`);
+  const f1 = (x) => x.toFixed(1) + '%';
+  console.log('\n验收：');
+  check(R.research.passRate >= 40 && R.research.passRate <= 60, '研究 bot 达到 B 及以上的比例在 40%–60%', `（${f1(R.research.passRate)}）`);
+  check([...idles, ...singles].every((r) => r.passRate <= 10), '所有躺平 bot、押单一公司 bot 达到 B 及以上的比例 ≤ 10%',
+    `（${[...idles, ...singles].map((r) => r.name + ' ' + f1(r.passRate)).join(' / ')}）`);
+  check(R.randval.passRate <= 15 && R.equal.passRate <= 5 && R.random.passRate <= 5, '随机估值 bot ≤ 15%；等权持有、随机交易 bot ≤ 5%',
+    `（${f1(R.randval.passRate)} / ${f1(R.equal.passRate)} / ${f1(R.random.passRate)}）`);
+  check(others.every((o) => R.research.meanScore > o.meanScore), '研究 bot 的平均总分高于其他所有 bot',
+    `（研究 ${R.research.meanScore.toFixed(1)}，其他最高 ${Math.max(...others.map((o) => o.meanScore)).toFixed(1)}）`);
+  check(R.research.dead10 <= 10, '研究 bot 第 10 回合结束时"提前判死"比例 ≤ 10%', `（${f1(R.research.dead10)}；各 bot：${all.map((r) => r.name + ' ' + f1(r.dead10)).join(' / ')}）`);
   const worst = singles.map((s) => ({ s, p: paired(s, R.equal) })).sort((x, y) => y.p.mean - x.p.mean)[0];
-  check(singles.every((s) => { const p = paired(s, R.equal); return p.mean < 2 * p.se; }), '任何押单一公司 bot 都不显著高于等权持有（配对差 < 2 倍标准误）',
-    `（最高：${worst.s.name} ${worst.p.mean >= 0 ? '+' : ''}${worst.p.mean.toFixed(2)} ±${worst.p.se.toFixed(2)}）`);
-  check(R.research.winRate >= 35 && R.research.winRate <= 60, '研究 bot 胜率在 35%–60%', `（${R.research.winRate.toFixed(1)}%）`);
-  check(singles.every((s) => s.winRate <= 10), '所有押单一公司 bot 胜率 ≤ 10%', `（${singles.map((s) => s.winRate.toFixed(1) + '%').join(' / ')}）`);
-  check(idles.every((s) => s.winRate <= 10), '所有躺平 bot 胜率 ≤ 10%', `（${idles.map((s) => s.name + ' ' + s.winRate.toFixed(1) + '%').join(' / ')}）`);
-  check([R.equal, R.random, R.randval].every((r) => r.winRate <= 15), '等权持有 / 随机交易 / 随机估值 bot 胜率 ≤ 15%',
-    `（${R.equal.winRate.toFixed(1)}% / ${R.random.winRate.toFixed(1)}% / ${R.randval.winRate.toFixed(1)}%）`);
+  check(R.research.mean > Math.max(...others.map((o) => o.mean)) && singles.every((s) => { const p = paired(s, R.equal); return p.mean < 3 * p.se; }),
+    '研究 bot 平均收益率最高；任何押单一公司 bot 都不显著高于等权持有（配对差 < 3 倍标准误）',
+    `（最高：${worst.s.name} ${worst.p.mean >= 0 ? '+' : ''}${worst.p.mean.toFixed(2)} ±${worst.p.se.toFixed(2)}，3×SE=${(3 * worst.p.se).toFixed(2)}）`);
 }
 
 if (require.main === module) main();

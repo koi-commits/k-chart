@@ -100,9 +100,10 @@ test('评分：总分 = 季度分之和 + 终局分 − 回撤扣分；等级线
 
 test('评分：提前判死 = 剩余季度与终局全拿上限仍达不到 B', () => {
   const S = G('scoring.js'), c = Config.scoring, B = c.grades.B;
-  const best = S.bestPossible([c.quarter.min, c.quarter.min], 0.10);          // 前两季度都拿下限
+  const th = c.drawdown.threshold;
+  const best = S.bestPossible([c.quarter.min, c.quarter.min], th);           // 前两季度都拿下限，回撤刚到阈值（不扣分）
   assert.ok(Math.abs(best - (2 * c.quarter.min + 2 * c.quarter.max + c.final.max)) < 1e-9);
-  assert.equal(S.isDead([c.quarter.min, c.quarter.min], 0.10), best < B);
+  assert.equal(S.isDead([c.quarter.min, c.quarter.min], th), best < B);
   assert.equal(S.isDead([c.quarter.max, c.quarter.max], 0), false);           // 前两季度满分，必然还活着或已够
   // 回撤扣分只增不减：回撤越大，上界越低
   assert.ok(S.bestPossible([0, 0], 0.5) < S.bestPossible([0, 0], 0.1));
