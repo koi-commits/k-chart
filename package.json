@@ -8,6 +8,7 @@
     "start": "electron .",
     "test": "node --test",
     "simulate": "node scripts/simulate.js",
+    "analyze": "node scripts/analyze-records.js",
     "build": "electron-builder --win portable"
   },
   "build": {

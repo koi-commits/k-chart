@@ -17,6 +17,7 @@ npm start                      # 运行游戏（electron 直接加载 index.html
 npm test                       # 单元测试（node:test，tests/ 目录）
 node scripts/simulate.js       # 平衡测试：研究/随机估值/随机交易/等权持有/押单一公司/躺平 共 11 个 bot，各 1000 局（约 2.5 分钟），输出各等级比例、平均总分、提前判死比例
 node scripts/simulate.js 200 7 # 可选参数：局数、起始种子
+node scripts/analyze-records.js <记录文件夹> [--json|--quiet]  # 分析试玩导出的 JSON 记录（每局明细 + 汇总）
 npm run build                  # 构建 Windows 便携版（国内网络先设置 ELECTRON_MIRROR）
 ```
 
@@ -72,7 +73,9 @@ npm run build                  # 构建 Windows 便携版（国内网络先设�
 │   ├── app.js         # 控制器：事件委托 → 调用 game/ 纯函数 → 存档/回放
 │   └── chart.js       # lightweight-charts 封装（K 线 + MA/BOLL + 成交量 + MACD + RSI/KDJ）
 ├── scripts/simulate.js    # 平衡测试（Node，无 DOM）
+├── scripts/analyze-records.js  # 分析试玩导出记录：版本/总分与等级/分数构成/回撤/研究使用/估值误差/耗时/重开次数 + 汇总
 ├── tests/game.test.js     # 单元测试（node:test）
+├── tests/analyze-records.test.js  # 记录分析脚本的测试
 ├── docs/windows-验证清单.md   # 只在 Linux 验证过的桌面功能，需在 Windows 上手动确认
 └── icons/ dist/
 ```
@@ -103,6 +106,9 @@ npm run build                  # 构建 Windows 便携版（国内网络先设�
 - 记录 = 种子 + 每回合 `{research, orders}`（与 `advanceTurn` 的 actions 同格式）+ 耗时 + 结果；`Record.replay(rec)` 重放得到与实际完全一致的结局（有测试覆盖，改规则代码时别破坏这一点：不要在 advanceTurn 里引入不可重放的状态）。
 - 记录里有 `gameVersion`（来自 `config.gameVersion`，当前 `v0.3-playtest`，也显示在界面右下角）。**发新一批试玩版本前要改这个值**，这样收回来的数据能区分版本。
 - 耗时由 `app.js` 测量（回合界面停留的累计毫秒，刷新后继续累计），传给 `commitTurn`。存档格式为 `{state, record}`；`state.version` 不符的旧存档直接丢弃。
+
+### 记录分析（scripts/analyze-records.js）
+- 读取一个文件夹里的所有导出 JSON（递归），跳过坏文件并说明原因。**记录格式变了要同步这个脚本和 `tests/analyze-records.test.js`**。估值误差通过 `Record.replay` 重放得到研究日志里的 `trueV`，所以只有 `gameVersion` 与当前代码一致、且重放结果与记录一致的局才有误差数据；改了会影响价格路径的规则（事件抽取、价格模型、引擎）后，旧版本记录就只能看分数构成。
 
 ### 即时反馈（summary.js / weekly.js / history.js）
 - 顶部评分条：当前总分、预估等级、本季度目前得分、距下一等级还差多少分（等级尺 D|C|B|A|S 带当前位置），下面是收益率 vs 基准、最大回撤（超阈值开始扣分）、四个季度的得分。全部由 `GameSummary.progress` 计算，数值读 config。季度成绩单与结算页展示分数构成明细。
