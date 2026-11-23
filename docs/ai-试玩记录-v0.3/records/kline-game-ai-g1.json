@@ -1,0 +1,926 @@
+{
+  "format": "kline-game-record",
+  "version": 1,
+  "gameVersion": "v0.3-playtest",
+  "restartCount": 0,
+  "seed": 1077876253,
+  "startedAt": "2026-11-23T02:54:29.896Z",
+  "endedAt": "2026-11-23T02:59:12.160Z",
+  "rules": {
+    "totalTurns": 20,
+    "quarters": 4,
+    "quarterLength": 5,
+    "scoring": {
+      "quarter": {
+        "beatBase": 5,
+        "perPoint": 1,
+        "min": -4,
+        "max": 15
+      },
+      "final": {
+        "perPoint": 0.25,
+        "min": -20,
+        "max": 60
+      },
+      "drawdown": {
+        "threshold": 0.05,
+        "perPoint": 1.5
+      },
+      "grades": {
+        "S": 56,
+        "A": 42,
+        "B": 29,
+        "C": 14
+      }
+    }
+  },
+  "turns": [
+    {
+      "turn": 1,
+      "durationMs": 19507,
+      "news": [
+        "新赛季开始，市场暂无重大消息。"
+      ],
+      "research": [
+        {
+          "id": "jzjy",
+          "points": 3,
+          "estimate": 89.72,
+          "sigma": 0.054450000000000005
+        }
+      ],
+      "orders": [
+        {
+          "id": "jzjy",
+          "side": "buy",
+          "shares": 300
+        },
+        {
+          "id": "gcxn",
+          "side": "buy",
+          "shares": 1000
+        },
+        {
+          "id": "hydc",
+          "side": "buy",
+          "shares": 1200
+        },
+        {
+          "id": "xhkj",
+          "side": "buy",
+          "shares": 200
+        }
+      ],
+      "trades": [
+        {
+          "id": "jzjy",
+          "side": "buy",
+          "shares": 300,
+          "price": 92.2,
+          "fee": 7.47,
+          "impactPct": 0
+        },
+        {
+          "id": "gcxn",
+          "side": "buy",
+          "shares": 1000,
+          "price": 25.6,
+          "fee": 6.91,
+          "impactPct": 0
+        },
+        {
+          "id": "hydc",
+          "side": "buy",
+          "shares": 1200,
+          "price": 20.13,
+          "fee": 6.52,
+          "impactPct": 0
+        },
+        {
+          "id": "xhkj",
+          "side": "buy",
+          "shares": 200,
+          "price": 80.75,
+          "fee": 5.32,
+          "impactPct": 0
+        }
+      ],
+      "failed": [],
+      "assetsAfter": 94783.78
+    },
+    {
+      "turn": 2,
+      "durationMs": 12964,
+      "news": [
+        "华岳地产再融资成本明显上升，债务压力引发市场担忧"
+      ],
+      "research": [
+        {
+          "id": "hydc",
+          "points": 3,
+          "estimate": 16.83,
+          "sigma": 0.054450000000000005
+        }
+      ],
+      "orders": [
+        {
+          "id": "hydc",
+          "side": "buy",
+          "shares": 400
+        }
+      ],
+      "trades": [
+        {
+          "id": "hydc",
+          "side": "buy",
+          "shares": 400,
+          "price": 14.45,
+          "fee": 5.12,
+          "impactPct": 0
+        }
+      ],
+      "failed": [],
+      "assetsAfter": 96228.66
+    },
+    {
+      "turn": 3,
+      "durationMs": 7498,
+      "news": [
+        "华岳地产业绩预告大幅超出市场预期，核心经营数据明显改善"
+      ],
+      "research": [
+        {
+          "id": "gcxn",
+          "points": 3,
+          "estimate": 27.34,
+          "sigma": 0.054450000000000005
+        }
+      ],
+      "orders": [],
+      "trades": [],
+      "failed": [],
+      "assetsAfter": 100702.66
+    },
+    {
+      "turn": 4,
+      "durationMs": 5748,
+      "news": [
+        "金樽酒业发布业绩预告，部分经营数据略好于市场预期"
+      ],
+      "research": [
+        {
+          "id": "xhkj",
+          "points": 3,
+          "estimate": 69.65,
+          "sigma": 0.054450000000000005
+        }
+      ],
+      "orders": [],
+      "trades": [],
+      "failed": [],
+      "assetsAfter": 91425.66
+    },
+    {
+      "turn": 5,
+      "durationMs": 1331,
+      "news": [
+        "华岳地产披露主营业务利润小幅回落，称属阶段性波动"
+      ],
+      "research": [
+        {
+          "id": "jzjy",
+          "points": 3,
+          "estimate": 100.18,
+          "sigma": 0.054450000000000005
+        }
+      ],
+      "orders": [],
+      "trades": [],
+      "failed": [],
+      "assetsAfter": 93110.66
+    },
+    {
+      "turn": 6,
+      "durationMs": 29181,
+      "news": [
+        "金樽酒业发布业绩预告，部分经营数据略好于市场预期"
+      ],
+      "research": [
+        {
+          "id": "jzjy",
+          "points": 3,
+          "estimate": 94.39,
+          "sigma": 0.054450000000000005
+        }
+      ],
+      "orders": [
+        {
+          "id": "jzjy",
+          "side": "sell",
+          "shares": 300
+        }
+      ],
+      "trades": [
+        {
+          "id": "jzjy",
+          "side": "sell",
+          "shares": 300,
+          "price": 116.48,
+          "fee": 44.38,
+          "impactPct": 0
+        }
+      ],
+      "failed": [],
+      "assetsAfter": 96262.28
+    },
+    {
+      "turn": 7,
+      "durationMs": 12216,
+      "news": [
+        "本周市场平静，没有重大消息。"
+      ],
+      "research": [
+        {
+          "id": "hydc",
+          "points": 3,
+          "estimate": 15.13,
+          "sigma": 0.054450000000000005
+        }
+      ],
+      "orders": [
+        {
+          "id": "hydc",
+          "side": "buy",
+          "shares": 2000
+        }
+      ],
+      "trades": [
+        {
+          "id": "hydc",
+          "side": "buy",
+          "shares": 2000,
+          "price": 13.26,
+          "fee": 7.16,
+          "impactPct": 0
+        }
+      ],
+      "failed": [],
+      "assetsAfter": 98361.12
+    },
+    {
+      "turn": 8,
+      "durationMs": 9116,
+      "news": [
+        "本周市场平静，没有重大消息。"
+      ],
+      "research": [
+        {
+          "id": "gcxn",
+          "points": 3,
+          "estimate": 25.69,
+          "sigma": 0.054450000000000005
+        }
+      ],
+      "orders": [
+        {
+          "id": "gcxn",
+          "side": "sell",
+          "shares": 500
+        }
+      ],
+      "trades": [
+        {
+          "id": "gcxn",
+          "side": "sell",
+          "shares": 500,
+          "price": 28.14,
+          "fee": 19.35,
+          "impactPct": 0
+        }
+      ],
+      "failed": [],
+      "assetsAfter": 111636.77
+    },
+    {
+      "turn": 9,
+      "durationMs": 10882,
+      "news": [
+        "本周市场平静，没有重大消息。"
+      ],
+      "research": [
+        {
+          "id": "xhkj",
+          "points": 3,
+          "estimate": 79.39,
+          "sigma": 0.054450000000000005
+        }
+      ],
+      "orders": [
+        {
+          "id": "gcxn",
+          "side": "sell",
+          "shares": 500
+        },
+        {
+          "id": "xhkj",
+          "side": "buy",
+          "shares": 300
+        }
+      ],
+      "trades": [
+        {
+          "id": "gcxn",
+          "side": "sell",
+          "shares": 500,
+          "price": 31.75,
+          "fee": 21.19,
+          "impactPct": 0
+        },
+        {
+          "id": "xhkj",
+          "side": "buy",
+          "shares": 300,
+          "price": 73.66,
+          "fee": 5.97,
+          "impactPct": 0
+        }
+      ],
+      "failed": [],
+      "assetsAfter": 99723.61
+    },
+    {
+      "turn": 10,
+      "durationMs": 9051,
+      "news": [
+        "华岳地产披露主营业务利润大幅下滑，管理层坦言经营承压"
+      ],
+      "research": [
+        {
+          "id": "hydc",
+          "points": 3,
+          "estimate": 13.15,
+          "sigma": 0.054450000000000005
+        }
+      ],
+      "orders": [],
+      "trades": [],
+      "failed": [],
+      "assetsAfter": 99938.61
+    },
+    {
+      "turn": 11,
+      "durationMs": 17918,
+      "news": [
+        "本周市场平静，没有重大消息。"
+      ],
+      "research": [
+        {
+          "id": "jzjy",
+          "points": 3,
+          "estimate": 93.45,
+          "sigma": 0.054450000000000005
+        }
+      ],
+      "orders": [
+        {
+          "id": "hydc",
+          "side": "buy",
+          "shares": 1200
+        }
+      ],
+      "trades": [
+        {
+          "id": "hydc",
+          "side": "buy",
+          "shares": 1200,
+          "price": 11.79,
+          "fee": 5.28,
+          "impactPct": 0
+        }
+      ],
+      "failed": [],
+      "assetsAfter": 101529.33
+    },
+    {
+      "turn": 12,
+      "durationMs": 6298,
+      "news": [
+        "本周市场平静，没有重大消息。"
+      ],
+      "research": [
+        {
+          "id": "xhkj",
+          "points": 3,
+          "estimate": 71.25,
+          "sigma": 0.054450000000000005
+        }
+      ],
+      "orders": [],
+      "trades": [],
+      "failed": [],
+      "assetsAfter": 100528.33
+    },
+    {
+      "turn": 13,
+      "durationMs": 10297,
+      "news": [
+        "本周市场平静，没有重大消息。"
+      ],
+      "research": [
+        {
+          "id": "gcxn",
+          "points": 3,
+          "estimate": 27.89,
+          "sigma": 0.054450000000000005
+        }
+      ],
+      "orders": [
+        {
+          "id": "xhkj",
+          "side": "sell",
+          "shares": 500
+        }
+      ],
+      "trades": [
+        {
+          "id": "xhkj",
+          "side": "sell",
+          "shares": 500,
+          "price": 81.48,
+          "fee": 51.74,
+          "impactPct": 0
+        }
+      ],
+      "failed": [],
+      "assetsAfter": 95506.59
+    },
+    {
+      "turn": 14,
+      "durationMs": 29629,
+      "news": [
+        "华岳地产业绩预告大幅低于市场预期，多项经营数据恶化",
+        "芯海科技公告签下常规供货订单，预计对当年业绩影响有限"
+      ],
+      "research": [
+        {
+          "id": "jzjy",
+          "points": 3,
+          "estimate": 92.86,
+          "sigma": 0.054450000000000005
+        }
+      ],
+      "orders": [
+        {
+          "id": "hydc",
+          "side": "sell",
+          "shares": 4800
+        }
+      ],
+      "trades": [
+        {
+          "id": "hydc",
+          "side": "sell",
+          "shares": 4800,
+          "price": 10.88,
+          "fee": 66.32,
+          "impactPct": 0
+        }
+      ],
+      "failed": [],
+      "assetsAfter": 95488.27
+    },
+    {
+      "turn": 15,
+      "durationMs": 4751,
+      "news": [
+        "华岳地产业绩预告大幅超出市场预期，核心经营数据明显改善"
+      ],
+      "research": [],
+      "orders": [],
+      "trades": [],
+      "failed": [],
+      "assetsAfter": 95488.27
+    },
+    {
+      "turn": 16,
+      "durationMs": 14015,
+      "news": [
+        "本周市场平静，没有重大消息。"
+      ],
+      "research": [
+        {
+          "id": "hydc",
+          "points": 3,
+          "estimate": 12.06,
+          "sigma": 0.054450000000000005
+        }
+      ],
+      "orders": [
+        {
+          "id": "jzjy",
+          "side": "buy",
+          "shares": 500
+        }
+      ],
+      "trades": [
+        {
+          "id": "jzjy",
+          "side": "buy",
+          "shares": 500,
+          "price": 85.75,
+          "fee": 11.58,
+          "impactPct": 0
+        }
+      ],
+      "failed": [],
+      "assetsAfter": 92331.69
+    },
+    {
+      "turn": 17,
+      "durationMs": 10837,
+      "news": [
+        "白酒行业迎来更严监管，多项主营业务面临整改"
+      ],
+      "research": [
+        {
+          "id": "jzjy",
+          "points": 3,
+          "estimate": 89.01,
+          "sigma": 0.054450000000000005
+        }
+      ],
+      "orders": [],
+      "trades": [],
+      "failed": [],
+      "assetsAfter": 98571.69
+    },
+    {
+      "turn": 18,
+      "durationMs": 618,
+      "news": [
+        "本周市场平静，没有重大消息。"
+      ],
+      "research": [],
+      "orders": [],
+      "trades": [],
+      "failed": [],
+      "assetsAfter": 99246.69
+    },
+    {
+      "turn": 19,
+      "durationMs": 653,
+      "news": [
+        "华岳地产披露业绩预告，主营业务利润显著增长"
+      ],
+      "research": [],
+      "orders": [],
+      "trades": [],
+      "failed": [],
+      "assetsAfter": 96381.69
+    },
+    {
+      "turn": 20,
+      "durationMs": 4752,
+      "news": [
+        "本周市场平静，没有重大消息。"
+      ],
+      "research": [],
+      "orders": [],
+      "trades": [],
+      "failed": [],
+      "assetsAfter": 99226.69
+    }
+  ],
+  "pending": {
+    "turn": 21,
+    "accMs": 0,
+    "research": []
+  },
+  "result": {
+    "outcome": "completed",
+    "turnsPlayed": 20,
+    "totalAssets": 99226.69,
+    "returnPct": -0.7733099999999937,
+    "benchmarkReturnPct": -9.917427285536155,
+    "quarters": [
+      {
+        "q": 1,
+        "done": true,
+        "days": 25,
+        "playerPct": -6.889339999999999,
+        "benchPct": -9.000498572793614,
+        "diff": 2.111158572793615,
+        "beat": true
+      },
+      {
+        "q": 2,
+        "done": true,
+        "days": 25,
+        "playerPct": 7.3331560532381435,
+        "benchPct": 13.05306164956168,
+        "diff": -5.719905596323537,
+        "beat": false
+      },
+      {
+        "q": 3,
+        "done": true,
+        "days": 25,
+        "playerPct": -4.453073741970193,
+        "benchPct": -11.308319962233826,
+        "diff": 6.855246220263633,
+        "beat": true
+      },
+      {
+        "q": 4,
+        "done": true,
+        "days": 25,
+        "playerPct": 3.9150567917923373,
+        "benchPct": -1.2728595409764343,
+        "diff": 5.187916332768772,
+        "beat": true
+      }
+    ],
+    "quartersBeaten": 3,
+    "score": {
+      "quarters": [
+        {
+          "excess": 2.111158572793615,
+          "base": 5,
+          "bonus": 2.111158572793615,
+          "raw": 7.111158572793615,
+          "score": 7.111158572793615,
+          "clamped": false
+        },
+        {
+          "excess": -5.719905596323537,
+          "base": 0,
+          "bonus": -5.719905596323537,
+          "raw": -5.719905596323537,
+          "score": -4,
+          "clamped": true
+        },
+        {
+          "excess": 6.855246220263633,
+          "base": 5,
+          "bonus": 6.855246220263633,
+          "raw": 11.855246220263634,
+          "score": 11.855246220263634,
+          "clamped": false
+        },
+        {
+          "excess": 5.187916332768772,
+          "base": 5,
+          "bonus": 5.187916332768772,
+          "raw": 10.187916332768772,
+          "score": 10.187916332768772,
+          "clamped": false
+        }
+      ],
+      "quarterTotal": 25.154321125826023,
+      "final": {
+        "excess": 9.144117285536158,
+        "raw": 2.2860293213840395,
+        "score": 2.2860293213840395,
+        "clamped": false
+      },
+      "drawdown": {
+        "maxDD": 0.1828257840136364,
+        "overPoints": 13.282578401363637,
+        "penalty": 19.923867602045455
+      },
+      "total": 7.516482845164607,
+      "grade": "D",
+      "pass": false,
+      "completedQuarters": 4,
+      "playerPct": -0.7733099999999937,
+      "benchPct": -9.917427285536151
+    },
+    "grade": "D",
+    "pass": false,
+    "maxDrawdown": 0.1828257840136364,
+    "truth": [
+      {
+        "id": "jzjy",
+        "name": "金樽酒业",
+        "V": 92.08,
+        "price": 93.25
+      },
+      {
+        "id": "gcxn",
+        "name": "光储新能",
+        "V": 27.3,
+        "price": 25.94
+      },
+      {
+        "id": "hydc",
+        "name": "华岳地产",
+        "V": 14.16,
+        "price": 14.41
+      },
+      {
+        "id": "xhkj",
+        "name": "芯海科技",
+        "V": 86.68,
+        "price": 69.67
+      }
+    ]
+  },
+  "truth": [
+    {
+      "id": "jzjy",
+      "name": "金樽酒业",
+      "industry": "liquor",
+      "growth": 0.0022,
+      "vol": 0.0113,
+      "debt": 0.0645,
+      "finalV": 92.08
+    },
+    {
+      "id": "gcxn",
+      "name": "光储新能",
+      "industry": "newenergy",
+      "growth": -0.0107,
+      "vol": 0.0214,
+      "debt": 0.6969,
+      "finalV": 27.3
+    },
+    {
+      "id": "hydc",
+      "name": "华岳地产",
+      "industry": "realestate",
+      "growth": -0.0634,
+      "vol": 0.0144,
+      "debt": 0.7106,
+      "finalV": 14.16
+    },
+    {
+      "id": "xhkj",
+      "name": "芯海科技",
+      "industry": "semi",
+      "growth": 0.1887,
+      "vol": 0.0245,
+      "debt": 0.1544,
+      "finalV": 86.68
+    }
+  ],
+  "events": [
+    {
+      "turn": 1,
+      "cardId": "refinance",
+      "kind": "fundamental",
+      "headline": "华岳地产再融资成本明显上升，债务压力引发市场担忧",
+      "targetId": "hydc",
+      "effects": {
+        "hydc": {
+          "vLog": -0.16537893245695143,
+          "sShift": -0.014388075578026474
+        }
+      }
+    },
+    {
+      "turn": 2,
+      "cardId": "earn_beat",
+      "kind": "fundamental",
+      "headline": "华岳地产业绩预告大幅超出市场预期，核心经营数据明显改善",
+      "targetId": "hydc",
+      "effects": {
+        "hydc": {
+          "vLog": 0.14862554859180158,
+          "sShift": 0.019102967409417033
+        }
+      }
+    },
+    {
+      "turn": 3,
+      "cardId": "earn_beat",
+      "kind": "fundamental",
+      "headline": "金樽酒业发布业绩预告，部分经营数据略好于市场预期",
+      "targetId": "jzjy",
+      "effects": {
+        "jzjy": {
+          "vLog": 0.06810238366563125,
+          "sShift": 0.0047921022772789
+        }
+      }
+    },
+    {
+      "turn": 4,
+      "cardId": "earn_miss",
+      "kind": "fundamental",
+      "headline": "华岳地产披露主营业务利润小幅回落，称属阶段性波动",
+      "targetId": "hydc",
+      "effects": {
+        "hydc": {
+          "vLog": -0.19035990295857155,
+          "sShift": -0.018917332934215665
+        }
+      }
+    },
+    {
+      "turn": 5,
+      "cardId": "earn_beat",
+      "kind": "fundamental",
+      "headline": "金樽酒业发布业绩预告，部分经营数据略好于市场预期",
+      "targetId": "jzjy",
+      "effects": {
+        "jzjy": {
+          "vLog": 0.0641699440075606,
+          "sShift": 0.014413884938694537
+        }
+      }
+    },
+    {
+      "turn": 9,
+      "cardId": "earn_miss",
+      "kind": "fundamental",
+      "headline": "华岳地产披露主营业务利润大幅下滑，管理层坦言经营承压",
+      "targetId": "hydc",
+      "effects": {
+        "hydc": {
+          "vLog": -0.22397636784063965,
+          "sShift": -0.018289361749775707
+        }
+      }
+    },
+    {
+      "turn": 13,
+      "cardId": "earn_miss",
+      "kind": "fundamental",
+      "headline": "华岳地产业绩预告大幅低于市场预期，多项经营数据恶化",
+      "targetId": "hydc",
+      "effects": {
+        "hydc": {
+          "vLog": -0.2181791810267813,
+          "sShift": -0.01870583358220756
+        }
+      }
+    },
+    {
+      "turn": 13,
+      "cardId": "big_order",
+      "kind": "fundamental",
+      "headline": "芯海科技公告签下常规供货订单，预计对当年业绩影响有限",
+      "targetId": "xhkj",
+      "effects": {
+        "xhkj": {
+          "vLog": 0.05220630812402441,
+          "sShift": 0.007159403893165291
+        }
+      }
+    },
+    {
+      "turn": 14,
+      "cardId": "earn_beat",
+      "kind": "fundamental",
+      "headline": "华岳地产业绩预告大幅超出市场预期，核心经营数据明显改善",
+      "targetId": "hydc",
+      "effects": {
+        "hydc": {
+          "vLog": 0.18256049260320245,
+          "sShift": 0.010600477191619575
+        }
+      }
+    },
+    {
+      "turn": 16,
+      "cardId": "policy_down",
+      "kind": "fundamental",
+      "headline": "白酒行业迎来更严监管，多项主营业务面临整改",
+      "targetId": "jzjy",
+      "effects": {
+        "jzjy": {
+          "vLog": -0.0761690576152673,
+          "sShift": -0.02042148953769356
+        }
+      }
+    },
+    {
+      "turn": 18,
+      "cardId": "earn_beat",
+      "kind": "fundamental",
+      "headline": "华岳地产披露业绩预告，主营业务利润显著增长",
+      "targetId": "hydc",
+      "effects": {
+        "hydc": {
+          "vLog": 0.1782312951982012,
+          "sShift": 0.007586288354359567
+        }
+      }
+    },
+    {
+      "turn": 20,
+      "cardId": "rumor_hype",
+      "kind": "sentiment",
+      "headline": "市场流传华岳地产将有重大资产重组，公司未予证实",
+      "targetId": "hydc",
+      "effects": {
+        "hydc": {
+          "vLog": 0,
+          "sShift": 0.09741985053755342
+        }
+      }
+    }
+  ],
+  "exportedAt": "2026-11-23T02:59:27.144Z",
+  "app": "kline-game-v0"
+}

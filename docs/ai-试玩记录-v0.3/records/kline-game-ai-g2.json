@@ -1,0 +1,761 @@
+{
+  "format": "kline-game-record",
+  "version": 1,
+  "gameVersion": "v0.3-playtest",
+  "restartCount": 0,
+  "seed": 2244726936,
+  "startedAt": "2026-11-23T02:59:35.942Z",
+  "endedAt": "2026-11-23T03:02:18.418Z",
+  "rules": {
+    "totalTurns": 20,
+    "quarters": 4,
+    "quarterLength": 5,
+    "scoring": {
+      "quarter": {
+        "beatBase": 5,
+        "perPoint": 1,
+        "min": -4,
+        "max": 15
+      },
+      "final": {
+        "perPoint": 0.25,
+        "min": -20,
+        "max": 60
+      },
+      "drawdown": {
+        "threshold": 0.05,
+        "perPoint": 1.5
+      },
+      "grades": {
+        "S": 56,
+        "A": 42,
+        "B": 29,
+        "C": 14
+      }
+    }
+  },
+  "turns": [
+    {
+      "turn": 1,
+      "durationMs": 8906,
+      "news": [
+        "新赛季开始，市场暂无重大消息。"
+      ],
+      "research": [
+        {
+          "id": "jzjy",
+          "points": 3,
+          "estimate": 171.5,
+          "sigma": 0.054450000000000005
+        }
+      ],
+      "orders": [
+        {
+          "id": "jzjy",
+          "side": "buy",
+          "shares": 500
+        }
+      ],
+      "trades": [
+        {
+          "id": "jzjy",
+          "side": "buy",
+          "shares": 500,
+          "price": 163.29,
+          "fee": 22.04,
+          "impactPct": 0
+        }
+      ],
+      "failed": [],
+      "assetsAfter": 97797.96
+    },
+    {
+      "turn": 2,
+      "durationMs": 12866,
+      "news": [
+        "华岳地产一位股东拟减持少量股份，市场情绪转谨慎"
+      ],
+      "research": [
+        {
+          "id": "gcxn",
+          "points": 3,
+          "estimate": 31.24,
+          "sigma": 0.054450000000000005
+        }
+      ],
+      "orders": [
+        {
+          "id": "jzjy",
+          "side": "buy",
+          "shares": 100
+        }
+      ],
+      "trades": [
+        {
+          "id": "jzjy",
+          "side": "buy",
+          "shares": 100,
+          "price": 159.11,
+          "fee": 5.32,
+          "impactPct": 0
+        }
+      ],
+      "failed": [],
+      "assetsAfter": 95056.64
+    },
+    {
+      "turn": 3,
+      "durationMs": 5146,
+      "news": [
+        "本周市场平静，没有重大消息。"
+      ],
+      "research": [
+        {
+          "id": "xhkj",
+          "points": 3,
+          "estimate": 109.46,
+          "sigma": 0.054450000000000005
+        }
+      ],
+      "orders": [],
+      "trades": [],
+      "failed": [],
+      "assetsAfter": 103168.64
+    },
+    {
+      "turn": 4,
+      "durationMs": 1364,
+      "news": [
+        "本周市场平静，没有重大消息。"
+      ],
+      "research": [
+        {
+          "id": "xhkj",
+          "points": 3,
+          "estimate": 102.58,
+          "sigma": 0.054450000000000005
+        }
+      ],
+      "orders": [],
+      "trades": [],
+      "failed": [],
+      "assetsAfter": 104332.64
+    },
+    {
+      "turn": 5,
+      "durationMs": 4063,
+      "news": [
+        "本周市场平静，没有重大消息。"
+      ],
+      "research": [
+        {
+          "id": "hydc",
+          "points": 3,
+          "estimate": 19.62,
+          "sigma": 0.054450000000000005
+        }
+      ],
+      "orders": [],
+      "trades": [],
+      "failed": [],
+      "assetsAfter": 104584.64
+    },
+    {
+      "turn": 6,
+      "durationMs": 15369,
+      "news": [
+        "市场传言芯海科技业绩将大幅超预期，公司暂无公告",
+        "华岳地产业绩预告大幅超出市场预期，核心经营数据明显改善"
+      ],
+      "research": [],
+      "orders": [
+        {
+          "id": "jzjy",
+          "side": "sell",
+          "shares": 600
+        },
+        {
+          "id": "hydc",
+          "side": "buy",
+          "shares": 5800
+        }
+      ],
+      "trades": [
+        {
+          "id": "jzjy",
+          "side": "sell",
+          "shares": 600,
+          "price": 170.94,
+          "fee": 130.26,
+          "impactPct": 0
+        },
+        {
+          "id": "hydc",
+          "side": "buy",
+          "shares": 5800,
+          "price": 16.99,
+          "fee": 26.61,
+          "impactPct": 0
+        }
+      ],
+      "failed": [],
+      "assetsAfter": 95137.77
+    },
+    {
+      "turn": 7,
+      "durationMs": 16767,
+      "news": [
+        "华岳地产再融资利率小幅上行，市场关注其偿债安排"
+      ],
+      "research": [
+        {
+          "id": "hydc",
+          "points": 3,
+          "estimate": 18.04,
+          "sigma": 0.054450000000000005
+        }
+      ],
+      "orders": [
+        {
+          "id": "hydc",
+          "side": "buy",
+          "shares": 400
+        }
+      ],
+      "trades": [
+        {
+          "id": "hydc",
+          "side": "buy",
+          "shares": 400,
+          "price": 15.2,
+          "fee": 5.12,
+          "impactPct": 0
+        }
+      ],
+      "failed": [],
+      "assetsAfter": 85570.65
+    },
+    {
+      "turn": 8,
+      "durationMs": 950,
+      "news": [
+        "华岳地产再融资利率小幅上行，市场关注其偿债安排"
+      ],
+      "research": [],
+      "orders": [],
+      "trades": [],
+      "failed": [],
+      "assetsAfter": 78068.65
+    },
+    {
+      "turn": 9,
+      "durationMs": 1032,
+      "news": [
+        "本周市场平静，没有重大消息。"
+      ],
+      "research": [],
+      "orders": [],
+      "trades": [],
+      "failed": [],
+      "assetsAfter": 82346.65
+    },
+    {
+      "turn": 10,
+      "durationMs": 18001,
+      "news": [
+        "本周市场平静，没有重大消息。"
+      ],
+      "research": [
+        {
+          "id": "hydc",
+          "points": 3,
+          "estimate": 16.35,
+          "sigma": 0.054450000000000005
+        }
+      ],
+      "orders": [],
+      "trades": [],
+      "failed": [],
+      "assetsAfter": 83834.65
+    },
+    {
+      "turn": 11,
+      "durationMs": 11302,
+      "news": [
+        "新能源板块获资金追捧，多只个股连续涨停"
+      ],
+      "research": [],
+      "orders": [],
+      "trades": [],
+      "failed": [],
+      "assetsAfter": 79122.65
+    },
+    {
+      "turn": 12,
+      "durationMs": 601,
+      "news": [
+        "芯海科技再融资成本明显上升，债务压力引发市场担忧"
+      ],
+      "research": [],
+      "orders": [],
+      "trades": [],
+      "failed": [],
+      "assetsAfter": 117438.65
+    },
+    {
+      "turn": 13,
+      "durationMs": 584,
+      "news": [
+        "市场流传华岳地产将有重大资产重组，公司未予证实",
+        "华岳地产披露业绩预告，主营业务利润显著增长"
+      ],
+      "research": [],
+      "orders": [],
+      "trades": [],
+      "failed": [],
+      "assetsAfter": 118120.65
+    },
+    {
+      "turn": 14,
+      "durationMs": 584,
+      "news": [
+        "市场流传金樽酒业将有重大资产重组，公司未予证实"
+      ],
+      "research": [],
+      "orders": [],
+      "trades": [],
+      "failed": [],
+      "assetsAfter": 137154.65
+    },
+    {
+      "turn": 15,
+      "durationMs": 615,
+      "news": [
+        "多家自媒体看好光储新能，称其有望受益于行业变化"
+      ],
+      "research": [],
+      "orders": [],
+      "trades": [],
+      "failed": [],
+      "assetsAfter": 138704.65
+    },
+    {
+      "turn": 16,
+      "durationMs": 435,
+      "news": [
+        "本周市场平静，没有重大消息。"
+      ],
+      "research": [],
+      "orders": [],
+      "trades": [],
+      "failed": [],
+      "assetsAfter": 135666.65
+    },
+    {
+      "turn": 17,
+      "durationMs": 616,
+      "news": [
+        "芯海科技发布业绩预告，部分经营数据略好于市场预期"
+      ],
+      "research": [],
+      "orders": [],
+      "trades": [],
+      "failed": [],
+      "assetsAfter": 147632.65
+    },
+    {
+      "turn": 18,
+      "durationMs": 603,
+      "news": [
+        "本周市场平静，没有重大消息。"
+      ],
+      "research": [],
+      "orders": [],
+      "trades": [],
+      "failed": [],
+      "assetsAfter": 151042.65
+    },
+    {
+      "turn": 19,
+      "durationMs": 664,
+      "news": [
+        "本周市场平静，没有重大消息。"
+      ],
+      "research": [],
+      "orders": [],
+      "trades": [],
+      "failed": [],
+      "assetsAfter": 171068.65
+    },
+    {
+      "turn": 20,
+      "durationMs": 4352,
+      "news": [
+        "白酒行业迎来更严监管，多项主营业务面临整改"
+      ],
+      "research": [],
+      "orders": [],
+      "trades": [],
+      "failed": [],
+      "assetsAfter": 164062.65
+    }
+  ],
+  "pending": {
+    "turn": 21,
+    "accMs": 0,
+    "research": []
+  },
+  "result": {
+    "outcome": "completed",
+    "turnsPlayed": 20,
+    "totalAssets": 164062.65,
+    "returnPct": 64.06265,
+    "benchmarkReturnPct": 6.684456183676507,
+    "quarters": [
+      {
+        "q": 1,
+        "done": true,
+        "days": 25,
+        "playerPct": 4.5846400000000065,
+        "benchPct": 6.540190802636614,
+        "diff": -1.9555508026366075,
+        "beat": false
+      },
+      {
+        "q": 2,
+        "done": true,
+        "days": 25,
+        "playerPct": -19.8403800022642,
+        "benchPct": -6.584107282525364,
+        "diff": -13.256272719738837,
+        "beat": false
+      },
+      {
+        "q": 3,
+        "done": true,
+        "days": 25,
+        "playerPct": 65.45026430002392,
+        "benchPct": 14.183391469052076,
+        "diff": 51.26687283097184,
+        "beat": true
+      },
+      {
+        "q": 4,
+        "done": true,
+        "days": 25,
+        "playerPct": 18.282011453833746,
+        "benchPct": -6.1219692741854566,
+        "diff": 24.403980728019203,
+        "beat": true
+      }
+    ],
+    "quartersBeaten": 2,
+    "score": {
+      "quarters": [
+        {
+          "excess": -1.9555508026366075,
+          "base": 0,
+          "bonus": -1.9555508026366075,
+          "raw": -1.9555508026366075,
+          "score": -1.9555508026366075,
+          "clamped": false
+        },
+        {
+          "excess": -13.256272719738837,
+          "base": 0,
+          "bonus": -13.256272719738837,
+          "raw": -13.256272719738837,
+          "score": -4,
+          "clamped": true
+        },
+        {
+          "excess": 51.26687283097184,
+          "base": 5,
+          "bonus": 51.26687283097184,
+          "raw": 56.26687283097184,
+          "score": 15,
+          "clamped": true
+        },
+        {
+          "excess": 24.403980728019203,
+          "base": 5,
+          "bonus": 24.403980728019203,
+          "raw": 29.403980728019203,
+          "score": 15,
+          "clamped": true
+        }
+      ],
+      "quarterTotal": 24.04444919736339,
+      "final": {
+        "excess": 57.3781938163235,
+        "raw": 14.344548454080876,
+        "score": 14.344548454080876,
+        "clamped": false
+      },
+      "drawdown": {
+        "maxDD": 0.35084243032106044,
+        "overPoints": 30.084243032106045,
+        "penalty": 45.12636454815907
+      },
+      "total": -6.737366896714796,
+      "grade": "D",
+      "pass": false,
+      "completedQuarters": 4,
+      "playerPct": 64.06265,
+      "benchPct": 6.6844561836765015
+    },
+    "grade": "D",
+    "pass": false,
+    "maxDrawdown": 0.35084243032106044,
+    "truth": [
+      {
+        "id": "jzjy",
+        "name": "金樽酒业",
+        "V": 136.75,
+        "price": 117.11
+      },
+      {
+        "id": "gcxn",
+        "name": "光储新能",
+        "V": 31.92,
+        "price": 27.84
+      },
+      {
+        "id": "hydc",
+        "name": "华岳地产",
+        "V": 21.63,
+        "price": 26.43
+      },
+      {
+        "id": "xhkj",
+        "name": "芯海科技",
+        "V": 98.64,
+        "price": 95.38
+      }
+    ]
+  },
+  "truth": [
+    {
+      "id": "jzjy",
+      "name": "金樽酒业",
+      "industry": "liquor",
+      "growth": 0.0518,
+      "vol": 0.015,
+      "debt": 0.1741,
+      "finalV": 136.75
+    },
+    {
+      "id": "gcxn",
+      "name": "光储新能",
+      "industry": "newenergy",
+      "growth": 0.0066,
+      "vol": 0.0164,
+      "debt": 0.4798,
+      "finalV": 31.92
+    },
+    {
+      "id": "hydc",
+      "name": "华岳地产",
+      "industry": "realestate",
+      "growth": 0.225,
+      "vol": 0.0189,
+      "debt": 0.8602,
+      "finalV": 21.63
+    },
+    {
+      "id": "xhkj",
+      "name": "芯海科技",
+      "industry": "semi",
+      "growth": 0.2476,
+      "vol": 0.0224,
+      "debt": 0.4495,
+      "finalV": 98.64
+    }
+  ],
+  "events": [
+    {
+      "turn": 1,
+      "cardId": "insider_sell",
+      "kind": "sentiment",
+      "headline": "华岳地产一位股东拟减持少量股份，市场情绪转谨慎",
+      "targetId": "hydc",
+      "effects": {
+        "hydc": {
+          "vLog": -0.002941510756533069,
+          "sShift": -0.05743288900470361
+        }
+      }
+    },
+    {
+      "turn": 5,
+      "cardId": "rumor_hype",
+      "kind": "sentiment",
+      "headline": "市场传言芯海科技业绩将大幅超预期，公司暂无公告",
+      "targetId": "xhkj",
+      "effects": {
+        "xhkj": {
+          "vLog": 0,
+          "sShift": 0.1126792963128537
+        }
+      }
+    },
+    {
+      "turn": 5,
+      "cardId": "earn_beat",
+      "kind": "fundamental",
+      "headline": "华岳地产业绩预告大幅超出市场预期，核心经营数据明显改善",
+      "targetId": "hydc",
+      "effects": {
+        "hydc": {
+          "vLog": 0.16209306675233828,
+          "sShift": 0.012175721996463836
+        }
+      }
+    },
+    {
+      "turn": 6,
+      "cardId": "refinance",
+      "kind": "fundamental",
+      "headline": "华岳地产再融资利率小幅上行，市场关注其偿债安排",
+      "targetId": "hydc",
+      "effects": {
+        "hydc": {
+          "vLog": -0.09600418607963165,
+          "sShift": -0.015871771164238456
+        }
+      }
+    },
+    {
+      "turn": 7,
+      "cardId": "refinance",
+      "kind": "fundamental",
+      "headline": "华岳地产再融资利率小幅上行，市场关注其偿债安排",
+      "targetId": "hydc",
+      "effects": {
+        "hydc": {
+          "vLog": -0.13798769123525365,
+          "sShift": -0.028580713795963678
+        }
+      }
+    },
+    {
+      "turn": 10,
+      "cardId": "sector_hype",
+      "kind": "sentiment",
+      "headline": "新能源板块获资金追捧，多只个股连续涨停",
+      "targetId": "gcxn",
+      "effects": {
+        "gcxn": {
+          "vLog": 0,
+          "sShift": 0.07558599024545401
+        }
+      }
+    },
+    {
+      "turn": 11,
+      "cardId": "refinance",
+      "kind": "fundamental",
+      "headline": "芯海科技再融资成本明显上升，债务压力引发市场担忧",
+      "targetId": "xhkj",
+      "effects": {
+        "xhkj": {
+          "vLog": -0.13437421456713577,
+          "sShift": -0.03730403998401016
+        }
+      }
+    },
+    {
+      "turn": 12,
+      "cardId": "rumor_hype",
+      "kind": "sentiment",
+      "headline": "市场流传华岳地产将有重大资产重组，公司未予证实",
+      "targetId": "hydc",
+      "effects": {
+        "hydc": {
+          "vLog": 0,
+          "sShift": 0.11666079219896346
+        }
+      }
+    },
+    {
+      "turn": 12,
+      "cardId": "earn_beat",
+      "kind": "fundamental",
+      "headline": "华岳地产披露业绩预告，主营业务利润显著增长",
+      "targetId": "hydc",
+      "effects": {
+        "hydc": {
+          "vLog": 0.2018123968509221,
+          "sShift": 0.012357028354890645
+        }
+      }
+    },
+    {
+      "turn": 13,
+      "cardId": "rumor_hype",
+      "kind": "sentiment",
+      "headline": "市场流传金樽酒业将有重大资产重组，公司未予证实",
+      "targetId": "jzjy",
+      "effects": {
+        "jzjy": {
+          "vLog": 0,
+          "sShift": 0.11271911756135522
+        }
+      }
+    },
+    {
+      "turn": 14,
+      "cardId": "rumor_hype",
+      "kind": "sentiment",
+      "headline": "多家自媒体看好光储新能，称其有望受益于行业变化",
+      "targetId": "gcxn",
+      "effects": {
+        "gcxn": {
+          "vLog": 0,
+          "sShift": 0.061053112931549545
+        }
+      }
+    },
+    {
+      "turn": 16,
+      "cardId": "earn_beat",
+      "kind": "fundamental",
+      "headline": "芯海科技发布业绩预告，部分经营数据略好于市场预期",
+      "targetId": "xhkj",
+      "effects": {
+        "xhkj": {
+          "vLog": 0.09283611495994233,
+          "sShift": 0.007089073350653052
+        }
+      }
+    },
+    {
+      "turn": 19,
+      "cardId": "policy_down",
+      "kind": "fundamental",
+      "headline": "白酒行业迎来更严监管，多项主营业务面临整改",
+      "targetId": "jzjy",
+      "effects": {
+        "jzjy": {
+          "vLog": -0.09250903783055972,
+          "sShift": -0.01976369647309184
+        }
+      }
+    },
+    {
+      "turn": 20,
+      "cardId": "policy_down",
+      "kind": "fundamental",
+      "headline": "白酒行业迎来更严监管，多项主营业务面临整改",
+      "targetId": "jzjy",
+      "effects": {
+        "jzjy": {
+          "vLog": -0.09297997713855201,
+          "sShift": -0.018317316281609236
+        }
+      }
+    }
+  ],
+  "exportedAt": "2026-11-23T03:02:37.196Z",
+  "app": "kline-game-v0"
+}
