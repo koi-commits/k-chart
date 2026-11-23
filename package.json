@@ -1,7 +1,7 @@
 {
   "name": "kline-simulator",
   "version": "1.0.0",
-  "description": "K线模拟器 — 基于 Electron 的实时K线图表模拟工具",
+  "description": "K线策略游戏 — 基于 Electron 的回合制股市策略游戏",
   "private": true,
   "main": "main.js",
   "scripts": {
@@ -12,7 +12,7 @@
   },
   "build": {
     "appId": "com.koi.kline-simulator",
-    "productName": "K线模拟器",
+    "productName": "K线策略游戏",
     "directories": {
       "output": "dist"
     },
@@ -32,7 +32,7 @@
       "signAndEditExecutable": false
     },
     "portable": {
-      "artifactName": "K线模拟器.exe"
+      "artifactName": "K线策略游戏.exe"
     }
   },
   "devDependencies": {

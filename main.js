@@ -12,7 +12,7 @@ function createWindow() {
     fullscreen: true,
     frame: false,
     icon: path.join(__dirname, 'icons', 'icon-256.png'),
-    title: 'K-line Simulator',
+    title: 'K线策略游戏',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,

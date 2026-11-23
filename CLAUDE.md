@@ -49,11 +49,13 @@ npm run build                  # 构建 Windows 便携版（国内网络先设�
 │   │   ├── market.js      # P = V·exp(s+ε)，每回合生成 5 根日 K
 │   │   ├── research.js    # 研究点 → V 的估计
 │   │   ├── trading.js     # 费率/冲击/T+1/涨跌停，纯函数
-│   │   └── game-state.js  # newGame() 与 advanceTurn(state, actions) -> newState
+│   │   ├── game-state.js  # newGame() 与 advanceTurn(state, actions) -> newState
+│   │   └── record.js      # 试玩记录（行动/耗时/结果）与 replay(record) 重放
 │   ├── ui/            # 界面层
 │   │   ├── save.js        # localStorage 自动存档（单槽，无手动读档）
 │   │   ├── view.js        # 纯渲染（state + ui → DOM）
-│   │   └── replay.js      # 结束回合后 5 根日 K 逐根回放（约 2 秒）
+│   │   ├── replay.js      # 结束回合后 5 根日 K 逐根回放（约 2 秒）
+│   │   └── review.js      # 结算后的复盘页（自绘 SVG：K 线 + 真实价值 V + 事件/买卖/研究标记）
 │   ├── app.js         # 控制器：事件委托 → 调用 game/ 纯函数 → 存档/回放
 │   └── chart.js       # lightweight-charts 封装（K 线 + MA/BOLL + 成交量 + MACD + RSI/KDJ）
 ├── scripts/simulate.js    # 平衡测试（Node，无 DOM）
@@ -61,11 +63,11 @@ npm run build                  # 构建 Windows 便携版（国内网络先设�
 └── icons/ dist/
 ```
 
-脚本加载顺序（index.html）：`lightweight-charts` → `game/config` → `rng` → `companies` → `events` → `market` → `research` → `trading` → `game-state` → `chart` → `ui/save` → `ui/view` → `ui/replay` → `app`。所有模块是 UMD/IIFE，通过全局变量互相引用（`GameConfig`、`GameRng`、`GameState`、`ChartManager`、`App` 等）。
+脚本加载顺序（index.html）：`lightweight-charts` → `game/config` → `rng` → `companies` → `events` → `market` → `research` → `trading` → `game-state` → `record` → `chart` → `ui/save` → `ui/view` → `ui/replay` → `ui/review` → `app`。所有模块是 UMD/IIFE，通过全局变量互相引用（`GameConfig`、`GameRng`、`GameState`、`ChartManager`、`App` 等）。
 
 ### 遗留文件（仍在仓库，但 index.html 不加载）
 
-`js/patterns.js`、`js/ordertypes.js`、`js/backtest.js`、`js/tutorial-content.js`、`js/tutorial-ui.js`。它们属于旧版实时模拟器：其中 `backtest.js`、`ordertypes.js` 等仍引用已删除的 `Simulator`/`Trader`，**无法直接加载**，要复用必须先改写成基于 `js/game/` 的版本。旧引擎 `simulator.js`/`trader.js`/`save-manager.js` 已删除，可在 `archive/simulator` 分支找到。
+`js/patterns.js`、`js/tutorial-content.js`、`js/tutorial-ui.js`：旧版实时模拟器的 K 线形态识别与教程，**尚未适配新游戏**。已删除的旧代码（`simulator.js`、`trader.js`、`save-manager.js`、`backtest.js`、`ordertypes.js` 等）都可在 `archive/simulator` 分支找到。不要在新代码里引用遗留文件。
 
 ## 关键实现细节
 
@@ -80,7 +82,12 @@ npm run build                  # 构建 Windows 便携版（国内网络先设�
 - `advanceTurn(state, actions)` 不修改入参，返回新 state。`actions = { research?: [{id, points}], orders?: [{id, side, shares}] }`。
 - state 里有 3 条独立随机流（`rng.market/events/research`，各存一个 uint32）：**玩家行动不改变价格路径**，同一种子下不同玩家/bot 面对完全相同的市场，可做配对比较。
 - state 含隐藏真相（`companies[id].V` 等）。UI 与 bot 不得读取它们（结算界面除外）；bot 只用 `candles`、`cash`、`positions`、`Research.getEstimate()`。
+- state 里除了当前状态，还记录复盘用的真相：`vPath`（真实价值 V 的逐日路径，与 `candles` 对齐）、`tradeLog`、`researchLog`（含研究当时的真实 V）、`eventLog`（含新闻文本与真实效果）。这些在游戏结束前绝不能展示；复盘页（`ui/review.js`）只在结算后读取。
 - 研究在 UI 中是即时操作（`GameResearch.research(state, id, points)` → 新 state），好让玩家看到估值后再下单；研究后立即存档，防止读档重抽。
+
+### 试玩记录（record.js / app.js）
+- 记录 = 种子 + 每回合 `{research, orders}`（与 `advanceTurn` 的 actions 同格式）+ 耗时 + 结果；`Record.replay(rec)` 重放得到与实际完全一致的结局（有测试覆盖，改规则代码时别破坏这一点：不要在 advanceTurn 里引入不可重放的状态）。
+- 耗时由 `app.js` 测量（回合界面停留的累计毫秒，刷新后继续累计），传给 `commitTurn`。存档格式为 `{state, record}`；`state.version` 不符的旧存档直接丢弃。
 
 ### 图表（chart.js）
 - 4 个同步图表：主图 + 成交量 + MACD + RSI/KDJ，同步用 `subscribeVisibleLogicalRangeChange`。

@@ -15,28 +15,59 @@
 - 第 20 回合结束，或总资产跌破 ¥30,000 时游戏结束，结算总资产、收益率、最大回撤，并揭晓每家公司的真实价值。
 - **胜利条件**：打完 20 回合，且收益率比"开局平均买入 4 家并一直持有"的基准高出 20 个百分点以上。
 - 进度自动存档，下次启动自动继续（没有手动读档）。
+- 结算后可以点"查看复盘"：每家公司一张图，把真实价值画在 K 线上，标出事件、你的买卖和研究估值，一眼看出哪些涨跌是基本面、哪些是情绪。
+- 结算后可以点"导出本局记录"，得到一个 JSON 文件（种子、每回合的研究与订单、每回合耗时、结果），用于收集试玩数据。
 
-## 运行
+## 运行（Windows）
 
-需要 Node.js 与 npm。
+> 下面的步骤按 Windows 10/11 + PowerShell 写成。我（开发者）是在 Linux 环境里开发和测试的，**Windows 下的安装与打包步骤尚未在 Windows 机器上实际跑过**，遇到问题请告诉我。
 
-```bash
-npm install     # 首次：安装 electron 与 lightweight-charts
-npm start       # 运行游戏
+### 方式一：直接运行源码
+
+1. 安装 [Node.js](https://nodejs.org) LTS 版（自带 npm），装完重新打开 PowerShell。
+2. 获取代码并切到游戏分支：
+   ```powershell
+   git clone https://github.com/koi-commits/k-chart.git
+   cd k-chart
+   git checkout game-v0
+   ```
+3. **国内网络**：Electron 会在 `npm install` 时下载约 100MB 的程序，必须在安装**之前**设置镜像：
+   ```powershell
+   $env:ELECTRON_MIRROR = "https://npmmirror.com/mirrors/electron/"
+   npm config set registry https://registry.npmmirror.com
+   ```
+   （用 cmd 的话把第一行换成 `set ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/`。）
+4. 安装并启动：
+   ```powershell
+   npm install
+   npm start
+   ```
+
+游戏是**全屏无边框**窗口，没有关闭按钮，按 **Alt+F4** 退出。
+
+### 方式二：打包成 exe 发给同学
+
+```powershell
+npm run build
 ```
 
-测试与平衡测试（不需要 electron，只需要 node）：
+产物是 `dist\K线策略游戏.exe`（便携版，单文件，无需安装）。把这一个文件发给同学，双击即可运行。
+
+- 国内网络同样要先设置上面的 `ELECTRON_MIRROR`（打包也要下载 Electron）。
+- exe 没有代码签名，同学第一次打开 Windows 可能弹出 SmartScreen "已保护你的电脑"：点"更多信息" → "仍要运行"。
+- 如果打包时报创建符号链接（symbolic link）的权限错误，请用管理员身份运行 PowerShell，或在 Windows 设置里打开"开发者模式"后重试。
+
+### 存档与试玩记录
+
+- 存档自动保存在浏览器本地存储里（Windows 下位于 `%APPDATA%\K线策略游戏\`），每次启动自动继续上一局；点"重新开始"或结算后点"再来一局"会开新局。
+- 一局结束后在结算界面点"💾 导出本局记录"，会下载一个 `kline-game-seed<种子>-<时间>.json`。请同学把这个文件发回给你。文件里的种子 + 每回合行动可以完整重放这一局。
+
+### 开发与测试（只需要 node，不需要 electron）
 
 ```bash
 npm test                            # 单元测试
 node scripts/simulate.js            # 8 个 bot 各 1000 局，并输出验收结果
 node scripts/simulate.js 200 7      # 200 局，种子从 7 开始
-```
-
-构建 Windows 便携版（输出到 `dist/`；国内网络先设置 `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/`）：
-
-```bash
-npm run build
 ```
 
 ## 目录结构
@@ -54,7 +85,8 @@ js/game/                 游戏核心（纯逻辑，浏览器与 Node 通用）
   research.js              研究点与估值
   trading.js               费率 / 冲击 / T+1 / 涨跌停
   game-state.js            advanceTurn(state, actions) -> newState
-js/ui/                   存档、渲染、回放
+  record.js                试玩记录与重放
+js/ui/                   存档、渲染、回放、复盘页
 js/app.js                界面控制器
 js/chart.js              K 线图表封装
 scripts/simulate.js      平衡测试
