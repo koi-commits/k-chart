@@ -61,6 +61,8 @@ const GameView = (() => {
     $('goalBox').innerHTML = retHtml + ddHtml + qHtml;
   }
 
+  const staleBadge = (id) => `<button class="stale-badge" data-action="stale-news" data-id="${id}" title="点击查看是哪几条新闻">研究后出现相关新闻</button>`;
+
   function renderCompanies(state, ui, upto) {
     $('companyList').innerHTML = Object.keys(state.companies).map((id) => {
       const co = state.companies[id];
@@ -70,6 +72,7 @@ const GameView = (() => {
       const est = GameResearch.getEstimate(state, id);
       const raw = state.research[id];
       let estHtml, premHtml = '';
+      const staleNews = est ? GameSummary.newsSinceResearch(state, id).length : 0;
       if (est) {
         estHtml = `<span class="est-ok">估值 ${money(est.estimate)} ±${(est.sigma * 100).toFixed(0)}%</span><span>剩余 ${est.remaining} 回合</span>`;
         premHtml = `<span>现价较估值</span><span class="${cls(q.price / est.estimate - 1)}">${pct(q.price / est.estimate - 1, 1)}</span>`;
@@ -85,6 +88,7 @@ const GameView = (() => {
         <div class="row2"><span>今日</span><span class="${cls(chg)}">${pct(chg)}</span></div>
         <div class="row3">${estHtml}</div>
         ${premHtml ? `<div class="row4">${premHtml}</div>` : ''}
+        ${staleNews ? staleBadge(id) : ''}
         <div class="row4">${posHtml}</div>
       </div>`;
     }).join('');
@@ -107,6 +111,7 @@ const GameView = (() => {
     $('researchPanel').innerHTML = `<h3>🔬 研究 · ${co.name}</h3>
       <div class="kv"><span>当前估值</span><b>${est ? money(est.estimate) + ` ±${(est.sigma * 100).toFixed(0)}%` : '—'}</b></div>
       <div class="kv"><span>有效期</span><span>${est ? `剩余 ${est.remaining} 回合` : '无有效估值'}</span></div>
+      ${est && GameSummary.newsSinceResearch(state, id).length ? `<div class="kv">${staleBadge(id)}</div>` : ''}
       <div class="kv"><span>本回合剩余研究点</span><b>${left}</b></div>
       <div class="kv muted"><span>误差：${sigmas}</span></div>
       <div class="btns">

@@ -177,6 +177,8 @@ const App = (() => {
       case 'rules-close': closeRules(); break;
       case 'weekly-close': closeWeekly(); break;
       case 'quarter-close': closeQuarter(); break;
+      case 'stale-news': GameHistory.openNews(state, d.id); break;
+      case 'newspop-close': GameHistory.closeNews(); break;
       case 'hist-go': GameHistory.go(parseInt(d.turn, 10)); break;
       case 'hist-close': closeHistory(); break;
       case 'review-open': GameReview.render(state); break;

@@ -34,9 +34,22 @@ const GameHistory = (() => {
     el.hidden = false;
   }
 
+  /** 点击"研究后出现相关新闻"：列出研究之后出现的相关新闻标题（不提示方向、幅度或估值是否有效） */
+  function openNews(state, id) {
+    const r = state.research[id], list = GameSummary.newsSinceResearch(state, id);
+    const el = document.getElementById('newsPop');
+    el.innerHTML = `<div class="card newspop-card">
+      <h2>${state.companies[id].name}：研究后出现的相关新闻</h2>
+      <div class="sub">你在第 ${r.turn} 回合研究了这家公司。此后出现了以下与它（或它所在行业）有关的新闻：</div>
+      <ul class="wk-news">${list.map((n) => `<li><span class="muted">第 ${n.turn} 回合的事件 · </span>${esc(n.headline)}</li>`).join('')}</ul>
+      <div class="actions"><button class="primary" data-action="newspop-close">关闭</button></div></div>`;
+    el.hidden = false;
+  }
+  function closeNews() { document.getElementById('newsPop').hidden = true; }
+
   function open(state) { render(state, maxTurn(state)); }
   function go(turn) { if (cur) render(cur, turn); }
   function close() { document.getElementById('history').hidden = true; }
 
-  return { open, go, close };
+  return { open, go, close, openNews, closeNews };
 })();

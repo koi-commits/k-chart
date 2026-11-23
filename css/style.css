@@ -176,3 +176,9 @@ button.small { padding: 1px 7px; font-size: 11px; }
 .conds li { padding: 3px 0; font-size: 13px; } .conds li.ok b:first-child { color: var(--up); } .conds li.no b:first-child { color: #ff1744; }
 .qtable { width: 100%; border-collapse: collapse; margin: 6px 0 14px; font-size: 12px; }
 .qtable th, .qtable td { text-align: right; padding: 4px 8px; border-bottom: 1px solid var(--line); } .qtable th:first-child, .qtable td:first-child { text-align: left; } .qtable th { color: var(--muted); font-weight: 400; }
+
+/* 研究后出现相关新闻 */
+.stale-badge { display: block; width: 100%; text-align: left; font-size: 11px; padding: 1px 6px; margin-top: 3px; border: 1px dashed var(--warn); color: var(--warn); background: rgba(255,183,77,.08); border-radius: 3px; }
+.stale-badge:hover:not(:disabled) { background: rgba(255,183,77,.18); border-color: var(--warn); }
+.company .row4 .stale-badge { margin-top: 0; }
+.newspop-card { width: 560px; }

@@ -357,3 +357,25 @@ test('多笔买单按下单顺序成交：前面的买单先用资金，后面�
   assert.equal(bought[0].id, 'xhkj'); assert.equal(bought[0].shares, first);
   assert.ok(n.lastWeek.failed.some((f) => f.order.id === 'gcxn' && f.error === '资金不足未成交'));
 });
+
+test('研究后相关新闻：只列研究之后、与该公司/行业有关的新闻标题，不含方向幅度', () => {
+  const Summary = G('summary.js');
+  let s = State.newGame(8);
+  s = JSON.parse(JSON.stringify(s));
+  // 第 3 回合研究金樽；手工构造事件日志：研究之前的事件、研究回合的事件、之后的相关/无关事件
+  s.turn = 3; s.status = 'playing';
+  s = Research.research(s, 'jzjy', 2).state;
+  const ev = (turn, targets, headline, kind) => ({ turn, cardId: 'x', kind, headline, targetId: targets[0], effects: Object.fromEntries(targets.map((t) => [t, { vLog: 0.1, sShift: 0.02 }])) });
+  s.eventLog = [ev(2, ['jzjy'], '研究前的新闻', 'fundamental'), ev(3, ['jzjy'], '研究当周的新闻', 'fundamental'),
+    ev(4, ['gcxn'], '别家公司的新闻', 'sentiment'), ev(5, ['jzjy', 'gcxn'], '行业新闻', 'sentiment')];
+  const list = Summary.newsSinceResearch(s, 'jzjy');
+  assert.deepEqual(list.map((x) => x.headline), ['研究当周的新闻', '行业新闻']);
+  assert.deepEqual(Object.keys(list[0]).sort(), ['headline', 'turn']);               // 只有回合与标题
+  assert.ok(!/fundamental|sentiment|vLog|sShift|0\.1/.test(JSON.stringify(list)));
+  assert.deepEqual(Summary.newsSinceResearch(s, 'xhkj'), []);                         // 没研究过 → 无
+  assert.deepEqual(Summary.newsSinceResearch(s, 'gcxn'), []);
+  // 重新研究后，之前的新闻不再算
+  s.turn = 6; s.pointsLeft = 3;
+  s = Research.research(s, 'jzjy', 1).state;
+  assert.deepEqual(Summary.newsSinceResearch(s, 'jzjy'), []);
+});

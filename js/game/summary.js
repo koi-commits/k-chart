@@ -63,6 +63,17 @@
     };
   }
 
+  /**
+   * 研究之后出现的、与该公司（或其所在行业）有关的新闻。
+   * 第 t 回合做的研究发生在第 t 周事件之前，所以 turn ≥ 研究回合的事件都算"研究之后"。
+   * 只返回回合与新闻标题：不含方向、幅度，也不判断估值是否仍然有效。
+   */
+  function newsSinceResearch(state, id) {
+    const r = state.research[id];
+    if (!r) return [];
+    return state.eventLog.filter((e) => e.turn >= r.turn && e.effects[id]).map((e) => ({ turn: e.turn, headline: e.headline }));
+  }
+
   /** 回合开始时玩家看到的新闻 = 上一周（turn-1）发生的事件标题；第 1 回合是开局提示 */
   function newsAtStart(state, turn) {
     if (turn <= 1) return ['新赛季开始，市场暂无重大消息。'];
@@ -117,5 +128,5 @@
     };
   }
 
-  return { progress, weekSummary, historyOf, newsAtStart, turnStartIdx };
+  return { progress, weekSummary, historyOf, newsAtStart, newsSinceResearch, turnStartIdx };
 });
