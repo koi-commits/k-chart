@@ -50,11 +50,14 @@ npm run build                  # 构建 Windows 便携版（国内网络先设�
 │   │   ├── research.js    # 研究点 → V 的估计
 │   │   ├── trading.js     # 费率/冲击/T+1/涨跌停，纯函数
 │   │   ├── game-state.js  # newGame() 与 advanceTurn(state, actions) -> newState
-│   │   └── record.js      # 试玩记录（行动/耗时/结果）与 replay(record) 重放
+│   │   ├── record.js      # 试玩记录（行动/耗时/结果）与 replay(record) 重放
+│   │   └── summary.js     # 玩家可见信息的纯函数：progress（目标进度）、weekSummary（回合小结）、historyOf（历史回看）
 │   ├── ui/            # 界面层
 │   │   ├── save.js        # localStorage 自动存档（单槽，无手动读档）
 │   │   ├── view.js        # 纯渲染（state + ui → DOM）
 │   │   ├── replay.js      # 结束回合后 5 根日 K 逐根回放（约 2 秒）
+│   │   ├── weekly.js      # 回合小结弹窗（盈亏/费用/成交/新闻）
+│   │   ├── history.js     # 回合历史：切换查看任意回合的新闻、研究与结果
 │   │   ├── rules.js       # 规则说明页（数值全部读 config，首次启动自动弹出，顶部"规则"按钮可再开）
 │   │   └── review.js      # 结算后的复盘页（自绘 SVG：K 线 + 真实价值 V + 事件/买卖/研究标记）
 │   ├── app.js         # 控制器：事件委托 → 调用 game/ 纯函数 → 存档/回放
@@ -65,7 +68,7 @@ npm run build                  # 构建 Windows 便携版（国内网络先设�
 └── icons/ dist/
 ```
 
-脚本加载顺序（index.html）：`lightweight-charts` → `game/config` → `rng` → `companies` → `events` → `market` → `research` → `trading` → `game-state` → `record` → `chart` → `ui/save` → `ui/view` → `ui/replay` → `ui/review` → `ui/rules` → `app`。所有模块是 UMD/IIFE，通过全局变量互相引用（`GameConfig`、`GameRng`、`GameState`、`ChartManager`、`App` 等）。
+脚本加载顺序（index.html）：`lightweight-charts` → `game/config` → `rng` → `companies` → `events` → `market` → `research` → `trading` → `game-state` → `record` → `summary` → `chart` → `ui/save` → `ui/view` → `ui/replay` → `ui/review` → `ui/weekly` → `ui/history` → `ui/rules` → `app`。所有模块是 UMD/IIFE，通过全局变量互相引用（`GameConfig`、`GameRng`、`GameState`、`ChartManager`、`App` 等）。
 
 ### 遗留文件（仍在仓库，但 index.html 不加载）
 
@@ -91,6 +94,11 @@ npm run build                  # 构建 Windows 便携版（国内网络先设�
 - 记录 = 种子 + 每回合 `{research, orders}`（与 `advanceTurn` 的 actions 同格式）+ 耗时 + 结果；`Record.replay(rec)` 重放得到与实际完全一致的结局（有测试覆盖，改规则代码时别破坏这一点：不要在 advanceTurn 里引入不可重放的状态）。
 - 记录里有 `gameVersion`（来自 `config.gameVersion`，当前 `v0.1-playtest`，也显示在界面右下角）。**发新一批试玩版本前要改这个值**，这样收回来的数据能区分版本。
 - 耗时由 `app.js` 测量（回合界面停留的累计毫秒，刷新后继续累计），传给 `commitTurn`。存档格式为 `{state, record}`；`state.version` 不符的旧存档直接丢弃。
+
+### 即时反馈（summary.js / weekly.js / history.js）
+- 顶部目标进度条：收益率 vs（等权基准 + `winMarginPct`），最大回撤 vs `winMaxDrawdown`（达到上限 75% 变橙、超限变红）。全部由 `GameSummary.progress` 计算，阈值读 config。
+- 回合小结、回合历史只能使用玩家本来能看到的信息：`candles`、`tradeLog`、`researchLog` 的 estimate/sigma、`eventLog` 的 headline。**禁止**读取 `vPath`、`trueV`、事件的 `kind`/`effects`；测试里有"小结不含真实价值"的检查。
+- 主图买卖标记与成本线：`ChartManager.setTradeOverlay`，只用初始化时创建的 candleSeries。
 
 ### 图表（chart.js）
 - 4 个同步图表：主图 + 成交量 + MACD + RSI/KDJ，同步用 `subscribeVisibleLogicalRangeChange`。
