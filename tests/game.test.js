@@ -586,3 +586,21 @@ test('结算诊断：最大丢分项 key、反事实用本局数据重算、文�
   assert.equal(Adv.fill(Adv.COUNTERFACTUAL.quarter, { q: 2, total: '+9.0', grade: 'C' }), '若第 2 季度跑平基准（超额 0 点），总分为 +9.0，等级为 C');
   assert.ok(!/建议|宁可/.test(require('fs').readFileSync(path.join(__dirname, '..', 'js/game/scoring.js'), 'utf8')));
 });
+
+test('规则页：评分 ≤ 5 条、每条一句话、数字都在悬停说明里；包含最大回撤定义', () => {
+  const vm = require('vm'), fs = require('fs');
+  const ctx = vm.createContext({ GameConfig: Config, GameResearch: G('research.js'), console });
+  for (const f of ['js/ui/tips.js', 'js/ui/rules.js']) vm.runInContext(fs.readFileSync(path.join(__dirname, '..', f), 'utf8'), ctx);
+  const items = vm.runInContext('GameRules.scoringItems()', ctx);
+  assert.ok(items.length >= 1 && items.length <= 5);
+  for (const it of items) {
+    const shown = it.replace(/<span class="tip[^"]*" tabindex="0" data-tip="[^"]*">ⓘ<\/span>/g, '');          // 去掉悬停说明，只看直接可见的文字
+    assert.equal((shown.match(/[。！？]/g) || []).length, 1, '每条一句话：' + shown);
+    assert.ok(!/\d/.test(shown), '具体数值应放进悬停说明：' + shown);
+    assert.match(it, /data-tip="/);
+  }
+  const all = items.join('');
+  assert.match(all, /最大回撤 ＝ 你的总资产相对基准净值，从最高点回落的最大幅度/);
+  const S = Config.scoring;
+  for (const n of [S.drawdown.maxPenalty, S.totalMin, S.grades.B, S.quarter.beatBase, S.final.perPoint]) assert.ok(all.includes(String(n)), '悬停说明应含数值 ' + n);
+});
