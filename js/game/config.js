@@ -7,6 +7,8 @@
   else root.GameConfig = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
   return {
+    gameVersion: 'v0.1-playtest', // 试玩版本号：显示在界面角落，并写入导出的记录
+
     // ── 规则 ──
     initialCash: 100000,       // 本金
     totalTurns: 20,            // v0 共 20 回合（每回合 = 一周）

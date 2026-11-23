@@ -13,6 +13,7 @@
   function create(seed, startedAt) {
     return {
       format: 'kline-game-record', version: 1,
+      gameVersion: GameConfig.gameVersion,
       seed, startedAt, endedAt: null,
       rules: { totalTurns: GameConfig.totalTurns, winMarginPct: GameConfig.winMarginPct, winMaxDrawdown: GameConfig.winMaxDrawdown },
       turns: [],

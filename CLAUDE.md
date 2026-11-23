@@ -35,8 +35,8 @@ npm run build                  # 构建 Windows 便携版（国内网络先设�
 ## 架构
 
 ```
-├── main.js            # Electron 主进程：只创建窗口（不再代理 HTTP，游戏不抓取真实数据）
-├── preload.js         # 空（contextIsolation: true，渲染进程不需要 Node 能力）
+├── main.js            # Electron 主进程：普通窗口 1280×800、F11 全屏/Esc 退出全屏、IPC（quit-app、save-record 保存对话框）。不联网，不抓取真实数据
+├── preload.js         # contextBridge 暴露 gameAPI.quit / gameAPI.saveRecord（contextIsolation: true，渲染进程无 Node 权限）
 ├── index.html         # 界面骨架，按顺序加载所有脚本
 ├── css/style.css      # 暗色主题，红涨绿跌
 ├── lib/lightweight-charts.js   # v4.2 UMD（必须从 node_modules 复制）
@@ -55,15 +55,17 @@ npm run build                  # 构建 Windows 便携版（国内网络先设�
 │   │   ├── save.js        # localStorage 自动存档（单槽，无手动读档）
 │   │   ├── view.js        # 纯渲染（state + ui → DOM）
 │   │   ├── replay.js      # 结束回合后 5 根日 K 逐根回放（约 2 秒）
+│   │   ├── rules.js       # 规则说明页（数值全部读 config，首次启动自动弹出，顶部"规则"按钮可再开）
 │   │   └── review.js      # 结算后的复盘页（自绘 SVG：K 线 + 真实价值 V + 事件/买卖/研究标记）
 │   ├── app.js         # 控制器：事件委托 → 调用 game/ 纯函数 → 存档/回放
 │   └── chart.js       # lightweight-charts 封装（K 线 + MA/BOLL + 成交量 + MACD + RSI/KDJ）
 ├── scripts/simulate.js    # 平衡测试（Node，无 DOM）
 ├── tests/game.test.js     # 单元测试（node:test）
+├── docs/windows-验证清单.md   # 只在 Linux 验证过的桌面功能，需在 Windows 上手动确认
 └── icons/ dist/
 ```
 
-脚本加载顺序（index.html）：`lightweight-charts` → `game/config` → `rng` → `companies` → `events` → `market` → `research` → `trading` → `game-state` → `record` → `chart` → `ui/save` → `ui/view` → `ui/replay` → `ui/review` → `app`。所有模块是 UMD/IIFE，通过全局变量互相引用（`GameConfig`、`GameRng`、`GameState`、`ChartManager`、`App` 等）。
+脚本加载顺序（index.html）：`lightweight-charts` → `game/config` → `rng` → `companies` → `events` → `market` → `research` → `trading` → `game-state` → `record` → `chart` → `ui/save` → `ui/view` → `ui/replay` → `ui/review` → `ui/rules` → `app`。所有模块是 UMD/IIFE，通过全局变量互相引用（`GameConfig`、`GameRng`、`GameState`、`ChartManager`、`App` 等）。
 
 ### 遗留文件（仍在仓库，但 index.html 不加载）
 
@@ -87,6 +89,7 @@ npm run build                  # 构建 Windows 便携版（国内网络先设�
 
 ### 试玩记录（record.js / app.js）
 - 记录 = 种子 + 每回合 `{research, orders}`（与 `advanceTurn` 的 actions 同格式）+ 耗时 + 结果；`Record.replay(rec)` 重放得到与实际完全一致的结局（有测试覆盖，改规则代码时别破坏这一点：不要在 advanceTurn 里引入不可重放的状态）。
+- 记录里有 `gameVersion`（来自 `config.gameVersion`，当前 `v0.1-playtest`，也显示在界面右下角）。**发新一批试玩版本前要改这个值**，这样收回来的数据能区分版本。
 - 耗时由 `app.js` 测量（回合界面停留的累计毫秒，刷新后继续累计），传给 `commitTurn`。存档格式为 `{state, record}`；`state.version` 不符的旧存档直接丢弃。
 
 ### 图表（chart.js）

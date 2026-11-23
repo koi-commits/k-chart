@@ -64,6 +64,7 @@ button.small { padding: 1px 7px; font-size: 11px; }
 .log .err { color: var(--warn); }
 
 /* 底部 */
+.ver { margin-left: auto; margin-right: 16px; font-family: var(--mono); font-size: 11px; color: var(--muted); opacity: .8; }
 #bottombar { display: flex; justify-content: space-between; align-items: center; padding: 8px 14px; background: var(--panel); border-top: 1px solid var(--line); color: var(--muted); }
 
 /* 结算 */

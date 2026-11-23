@@ -117,7 +117,7 @@ const App = (() => {
 
   /** 导出本局记录为 JSON 文件（种子、每回合行动与耗时、最终结果） */
   async function exportRecord() {
-    const out = Object.assign({}, record, { exportedAt: new Date().toISOString(), app: 'kline-game-v0' });
+    const out = Object.assign({}, record, { exportedAt: new Date().toISOString(), app: 'kline-game-v0', gameVersion: GameConfig.gameVersion });
     const text = JSON.stringify(out, null, 2);
     const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
     const filename = `kline-game-seed${record.seed}-${stamp}.json`;
@@ -163,6 +163,7 @@ const App = (() => {
 
   function init() {
     if (typeof LightweightCharts === 'undefined') { setTimeout(init, 100); return; }
+    document.getElementById('verTag').textContent = GameConfig.gameVersion;
     ChartManager.init();
     document.addEventListener('click', onClick);
     document.getElementById('btnEndTurn').addEventListener('click', endTurn);

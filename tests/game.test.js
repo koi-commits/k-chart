@@ -178,6 +178,7 @@ test('试玩记录：回合行动记录后可重放出完全相同的结果', ()
     Record.commitTurn(rec, { turn: s.turn, orders, durationMs: 1234.4, newsShown: s.news.map((n) => n.headline), state: next, endedAt: 'x' });
     s = next;
   }
+  assert.equal(rec.gameVersion, Config.gameVersion);
   assert.equal(rec.turns.length, Config.totalTurns);
   assert.equal(rec.turns[0].durationMs, 1234);
   assert.equal(rec.result.totalAssets, s.result.totalAssets);
