@@ -71,7 +71,7 @@
    * @param account {cash, positions:{id:{shares,avgCost,boughtDay,boughtQty}}}
    * @param order   {id, side:'buy'|'sell', shares}
    * @param ctx     {price(开盘价), prevClose, day, company:{vol,adv}}
-   * @returns {account, trade} 成功；{account(原样), error} 失败
+   * @returns {account, trade, unfilled} 成功（unfilled>0 = 买单因资金不足只成交了一部分）；{account(原样), error[, unfilled]} 失败
    */
   function executeOrder(account, order, ctx) {
     const lot = GameConfig.lotSize;
@@ -90,34 +90,51 @@
       }
     }
 
-    const impact = marketImpact(order.side, shares, ctx.price, ctx.company);
-    const value = impact.avgPrice * shares;
-    const fee = calcFee(order.side, impact.avgPrice, shares);
+    let filled = shares;
+    let impact = marketImpact(order.side, filled, ctx.price, ctx.company);
+    let value = impact.avgPrice * filled;
+    let fee = calcFee(order.side, impact.avgPrice, filled);
 
     const positions = Object.assign({}, account.positions);
     let cash = account.cash;
 
     if (order.side === 'buy') {
-      if (value + fee.total > cash) return { account, error: '资金不足' };
+      if (value + fee.total > cash) {
+        // 资金不足：按可买手数部分成交（成交额随手数单调增加，二分查找最大可买手数）
+        let lo = 0, hi = filled / lot - 1;
+        while (lo < hi) {
+          const mid = Math.ceil((lo + hi + 1) / 2);
+          const im = marketImpact('buy', mid * lot, ctx.price, ctx.company);
+          if (im.avgPrice * mid * lot + calcFee('buy', im.avgPrice, mid * lot).total <= cash) lo = mid; else hi = mid - 1;
+        }
+        if (lo < 1) return { account, error: '资金不足未成交', unfilled: shares };
+        filled = lo * lot;
+        impact = marketImpact('buy', filled, ctx.price, ctx.company);
+        value = impact.avgPrice * filled;
+        fee = calcFee('buy', impact.avgPrice, filled);
+      }
       cash -= value + fee.total;
       const p = pos0 || { shares: 0, avgCost: 0, boughtDay: -1, boughtQty: 0 };
       const total = p.avgCost * p.shares + value;
       positions[order.id] = {
-        shares: p.shares + shares,
-        avgCost: total / (p.shares + shares),
+        shares: p.shares + filled,
+        avgCost: total / (p.shares + filled),
         boughtDay: ctx.day,
-        boughtQty: (p.boughtDay === ctx.day ? p.boughtQty : 0) + shares
+        boughtQty: (p.boughtDay === ctx.day ? p.boughtQty : 0) + filled
       };
     } else {
       cash += value - fee.total;
-      const left = pos0.shares - shares;
+      const left = pos0.shares - filled;
       if (left === 0) delete positions[order.id];
       else positions[order.id] = Object.assign({}, pos0, { shares: left });
     }
 
     return {
       account: { cash, positions },
-      trade: { id: order.id, side: order.side, shares, price: impact.avgPrice, fee: fee.total, impactPct: impact.impactPct }
+      trade: Object.assign(
+        { id: order.id, side: order.side, shares: filled, price: impact.avgPrice, fee: fee.total, impactPct: impact.impactPct },
+        filled < shares ? { requested: shares } : {}),
+      unfilled: shares - filled   // > 0 表示买单只成交了一部分（资金不足）
     };
   }
 

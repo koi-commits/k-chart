@@ -243,3 +243,65 @@ test('summary.weekSummary：各公司盈亏之和 = 本周总资产变化；不�
   const h = Summary.historyOf(s, 3);
   assert.ok(!/trueV/.test(JSON.stringify(h)));
 });
+
+// ── 卖出所得用于同回合买入：足额 / 部分成交 / 全部未成交 ──
+function fundingState() {
+  const s = State.newGame(5);
+  s.cash = 0;
+  s.positions = { jzjy: { shares: 1000, avgCost: 100, boughtDay: -1, boughtQty: 0 } }; // 早就持有，可卖
+  return s;
+}
+const px = (s, id) => State.lastClose(s, id);
+
+test('同回合买入（足额）：先卖后买，卖出所得足以支付买单', () => {
+  const s = fundingState();
+  const proceeds = 500 * px(s, 'jzjy');                       // 卖 5 手所得（约）
+  const buyShares = Math.floor((proceeds * 0.5) / px(s, 'xhkj') / 100) * 100;   // 只花一半
+  assert.ok(buyShares >= 100);
+  const n = State.advanceTurn(s, { orders: [{ id: 'xhkj', side: 'buy', shares: buyShares }, { id: 'jzjy', side: 'sell', shares: 500 }] });
+  const buy = n.lastWeek.trades.find((t) => t.side === 'buy');
+  assert.equal(buy.shares, buyShares);
+  assert.equal(buy.requested, undefined);
+  assert.equal(n.lastWeek.failed.length, 0);
+  assert.ok(n.cash > 0);
+});
+
+test('同回合买入（部分成交）：所得不足时按可买手数成交，剩余标记资金不足未成交', () => {
+  const s = fundingState();
+  const proceeds = 500 * px(s, 'jzjy');
+  const want = Math.floor((proceeds * 2.5) / px(s, 'xhkj') / 100) * 100;        // 想买 2.5 倍
+  const n = State.advanceTurn(s, { orders: [{ id: 'jzjy', side: 'sell', shares: 500 }, { id: 'xhkj', side: 'buy', shares: want }] });
+  const buy = n.lastWeek.trades.find((t) => t.side === 'buy');
+  assert.ok(buy && buy.shares >= 100 && buy.shares < want, `应部分成交，实际 ${buy && buy.shares}/${want}`);
+  assert.equal(buy.requested, want);
+  assert.equal(buy.shares % 100, 0);
+  const f = n.lastWeek.failed.find((x) => x.error === '资金不足未成交');
+  assert.ok(f && f.partial && f.order.shares === want - buy.shares, '剩余部分应记为资金不足未成交');
+  assert.ok(n.cash >= 0 && n.cash < 2 * px(n, 'xhkj') * 100 * 1.2, '现金应基本用尽（不足再买一手）');
+  assert.equal(n.failedLog.length, 1);
+  // 小结里能看到
+  const w = G('summary.js').weekSummary(n, 1);
+  assert.equal(w.failed[0].error, '资金不足未成交');
+  assert.equal(w.trades.find((t) => t.side === 'buy').requested, want);
+});
+
+test('同回合买入（全部未成交）：没有现金也没有卖出所得', () => {
+  const s = fundingState();
+  const n = State.advanceTurn(s, { orders: [{ id: 'xhkj', side: 'buy', shares: 300 }] });
+  assert.equal(n.lastWeek.trades.length, 0);
+  assert.equal(n.lastWeek.failed.length, 1);
+  assert.equal(n.lastWeek.failed[0].error, '资金不足未成交');
+  assert.equal(n.lastWeek.failed[0].order.shares, 300);
+  assert.equal(n.cash, 0);
+});
+
+test('多笔买单按下单顺序成交：前面的买单先用资金，后面的不足', () => {
+  const s = fundingState();
+  const proceeds = 500 * px(s, 'jzjy');
+  const first = Math.floor((proceeds * 0.9) / px(s, 'xhkj') / 100) * 100;
+  const n = State.advanceTurn(s, { orders: [
+    { id: 'xhkj', side: 'buy', shares: first }, { id: 'gcxn', side: 'buy', shares: 500 }, { id: 'jzjy', side: 'sell', shares: 500 }] });
+  const bought = n.lastWeek.trades.filter((t) => t.side === 'buy');
+  assert.equal(bought[0].id, 'xhkj'); assert.equal(bought[0].shares, first);
+  assert.ok(n.lastWeek.failed.some((f) => f.order.id === 'gcxn' && f.error === '资金不足未成交'));
+});

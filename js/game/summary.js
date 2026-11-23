@@ -79,11 +79,11 @@
       rows.push({ id, name: state.companies[id].name, pnl: round2(pnl), fee: round2(fee), sharesEnd: sh1, weekChange: wkChg });
       total += pnl; fees += fee;
     }
-    const failed = turn === state.lastWeek?.turn ? state.lastWeek.failed : null; // 只有最近一周保留了失败原因
+    const failed = (state.failedLog || []).filter((f) => f.turn === turn);
     return {
       turn, total: round2(total), fees: round2(fees), rows,
-      trades: trades.map((t) => ({ id: t.id, name: state.companies[t.id].name, side: t.side, shares: t.shares, price: t.price, fee: t.fee })),
-      failed: failed ? failed.map((f) => ({ id: f.order.id, name: state.companies[f.order.id].name, side: f.order.side, shares: f.order.shares, error: f.error })) : [],
+      trades: trades.map((t) => ({ id: t.id, name: state.companies[t.id].name, side: t.side, shares: t.shares, price: t.price, fee: t.fee, requested: t.requested || null })),
+      failed: failed.map((f) => ({ id: f.id, name: state.companies[f.id].name, side: f.side, shares: f.shares, error: f.error, partial: !!f.partial })),
       news: state.eventLog.filter((e) => e.turn === turn).map((e) => e.headline),   // 本周发生的新闻（下回合开头会再次显示）
       assetsEnd: state.equity.filter((e) => e.turn === turn).slice(-1)[0].assets
     };

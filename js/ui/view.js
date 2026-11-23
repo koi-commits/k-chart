@@ -112,20 +112,22 @@ const GameView = (() => {
   }
 
   /** 已排队的订单对现金/可卖股数的占用（按现价估算） */
+  /** 已排队订单的占用：买单占用现金；卖单占用可卖股数，并按现价估算所得（周一先卖后买，所得可用于买单） */
   function reserved(state, ui) {
-    let cash = 0; const sell = {};
+    let cash = 0, proceeds = 0; const sell = {};
     for (const o of ui.pending) {
-      const px = quote(state, o.id).price;
-      if (o.side === 'buy') cash += o.lots * GameConfig.lotSize * px * 1.0003 + GameTrading.calcFee('buy', px, o.lots * GameConfig.lotSize).total;
-      else sell[o.id] = (sell[o.id] || 0) + o.lots * GameConfig.lotSize;
+      const px = quote(state, o.id).price, shares = o.lots * GameConfig.lotSize;
+      if (o.side === 'buy') cash += shares * px * 1.0003 + GameTrading.calcFee('buy', px, shares).total;
+      else { sell[o.id] = (sell[o.id] || 0) + shares; proceeds += shares * px - GameTrading.calcFee('sell', px, shares).total; }
     }
-    return { cash, sell };
+    return { cash, sell, proceeds };
   }
 
   function limits(state, ui, id) {
     const r = reserved(state, ui);
     const px = quote(state, id).price;
-    const buyLots = Math.floor(GameTrading.maxAffordable((state.cash - r.cash) / 1.01, px * 1.0) / GameConfig.lotSize);
+    // 可用资金 = 现金 + 待卖出订单的估算所得（已扣费用） − 待买入订单的占用
+    const buyLots = Math.floor(GameTrading.maxAffordable((state.cash + r.proceeds - r.cash) / 1.01, px * 1.0) / GameConfig.lotSize);
     const pos = state.positions[id];
     const sellLots = Math.floor(((pos ? pos.shares : 0) - (r.sell[id] || 0)) / GameConfig.lotSize);
     return { buyLots: Math.max(0, buyLots), sellLots: Math.max(0, sellLots), price: px };

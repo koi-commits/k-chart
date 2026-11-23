@@ -17,9 +17,9 @@ const GameWeekly = (() => {
       <td>${r.sharesEnd ? r.sharesEnd + ' 股' : '<span class="muted">—</span>'}</td>
       <td class="${cls(r.pnl)}">${r.pnl === 0 && !r.sharesEnd ? '<span class="muted">—</span>' : money(r.pnl)}</td></tr>`).join('');
     const tr = w.trades.length
-      ? w.trades.map((t) => `<div>${t.side === 'buy' ? '买入' : '卖出'} ${t.name} ${t.shares} 股 @${fmt(t.price)}　<span class="muted">费用 ¥${fmt(t.fee)}</span></div>`).join('')
+      ? w.trades.map((t) => `<div>${t.side === 'buy' ? '买入' : '卖出'} ${t.name} ${t.shares} 股 @${fmt(t.price)}　<span class="muted">费用 ¥${fmt(t.fee)}</span>${t.requested ? `　<span class="warn">部分成交（申请 ${t.requested} 股）</span>` : ''}</div>`).join('')
       : '<div class="muted">本周没有成交。</div>';
-    const failed = w.failed.map((f) => `<div class="warn">未成交：${f.side === 'buy' ? '买入' : '卖出'} ${f.name} ${f.shares} 股 — ${esc(f.error)}</div>`).join('');
+    const failed = w.failed.map((f) => `<div class="warn">${f.error === '资金不足未成交' ? `资金不足未成交：${f.partial ? '剩余 ' : ''}买入 ${f.name} ${f.shares} 股（卖出所得与现金不足以支付全部买单）` : `未成交：${f.side === 'buy' ? '买入' : '卖出'} ${f.name} ${f.shares} 股 — ${esc(f.error)}`}</div>`).join('');
     const news = w.news.length ? w.news.map((h) => `<li>${esc(h)}</li>`).join('') : '<li class="muted">本周市场平静，没有重大消息。</li>';
     return `<div class="wk-big"><div><span>本周总盈亏</span><b class="${cls(w.total)}">${money(w.total)}</b></div>
         <div><span>本周费用</span><b>¥${fmt(w.fees)}</b></div>

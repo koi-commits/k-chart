@@ -53,7 +53,7 @@
       cash: GameConfig.initialCash, positions: {},
       companies, candles, carry,
       vPath,                       // 真实价值 V 的逐日路径（与 candles 对齐；仅复盘使用）
-      tradeLog: [], researchLog: [],
+      tradeLog: [], researchLog: [], failedLog: [],
       research: {}, pointsLeft: GameConfig.research.pointsPerTurn,
       news: [{ cardId: null, headline: '新赛季开始，市场暂无重大消息。' }],
       eventLog: [], lastWeek: null,
@@ -145,7 +145,10 @@
         price: wk.candles[0].open, prevClose: wk.prevClose, day: baseDay, company: s.companies[o.id]
       });
       if (res.error) failed.push({ order: o, error: res.error });
-      else { account = res.account; trades.push(res.trade); }
+      else {
+        account = res.account; trades.push(res.trade);
+        if (res.unfilled > 0) failed.push({ order: Object.assign({}, o, { shares: res.unfilled }), error: '资金不足未成交', partial: true });
+      }
     }
     s.cash = account.cash; s.positions = account.positions;
 
@@ -157,6 +160,7 @@
     }
     for (const id of ids) { s.candles[id].push(...weekCandles[id].candles); s.vPath[id].push(...weekCandles[id].vs); }
     for (const t of trades) s.tradeLog.push(Object.assign({ turn: s.turn, day: baseDay }, t));
+    for (const f of failed) s.failedLog.push({ turn: s.turn, id: f.order.id, side: f.order.side, shares: f.order.shares, error: f.error, partial: !!f.partial });
 
     // 4. 新闻与记录
     s.lastWeek = { turn: s.turn, trades, failed, events: events.map((e) => e.headline) };
