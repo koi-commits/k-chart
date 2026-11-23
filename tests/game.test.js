@@ -441,3 +441,61 @@ test('回合小结的回撤：周内最深回落 ≥ 周末当前回落，且不
     assert.ok(Math.abs(w.maxDrawdownSoFar - State.maxDrawdown(s.equity.slice(0, t * Config.daysPerTurn + 1))) < 1e-12);
   }
 });
+
+// ── 新闻文案 ──
+const Events = G('events.js');
+const allHeadlines = () => {
+  const out = [];
+  for (const c of Events.CARDS) for (const tpl of [...c.strong, ...c.weak]) {
+    out.push({ card: c.id, kind: c.kind, dir: c.dir, text: tpl.replace('{name}', '某公司').replace('{industry}', '某行业') });
+  }
+  return out;
+};
+
+test('新闻文案：没有直接暴露类型的尾句，每张卡有轻/重两档说法', () => {
+  const banned = ['一切正常', '基本面无明显变化', '经营正常', '基本面没有变化', '并非基本面', '纯属情绪', '情绪炒作'];
+  for (const h of allHeadlines()) for (const b of banned) assert.ok(!h.text.includes(b), `"${h.text}" 含有暴露类型的措辞 "${b}"`);
+  for (const c of Events.CARDS) assert.ok(c.strong.length >= 1 && c.weak.length >= 1, `${c.id} 应有重/轻两档`);
+  // 区分度：同一张卡的重/轻说法不相同，且不再有"具体金额未披露"这种读完就知道无关紧要的话
+  for (const c of Events.CARDS) assert.ok(c.strong.every((s) => !c.weak.includes(s)));
+  assert.ok(allHeadlines().every((h) => !h.text.includes('具体金额未披露')));
+});
+
+test('新闻文案：仅凭关键词无法 100% 判断是基本面还是情绪', () => {
+  const hs = allHeadlines();
+  assert.ok(hs.filter((h) => h.kind === 'fundamental').length >= 8 && hs.filter((h) => h.kind === 'sentiment').length >= 8);
+  // 1) 任何一个 2–8 字的子串，都不能"出现 ⇔ 某一类型"（即不存在能 100% 区分两类的单个关键词）
+  const subs = new Set();
+  for (const h of hs) for (let n = 2; n <= 8; n++) for (let i = 0; i + n <= h.text.length; i++) subs.add(h.text.slice(i, i + n));
+  for (const s of subs) {
+    const has = hs.filter((h) => h.text.includes(s)), not = hs.filter((h) => !h.text.includes(s));
+    const perfect = (kind) => has.every((h) => h.kind === kind) && not.every((h) => h.kind !== kind);
+    assert.ok(!perfect('sentiment') && !perfect('fundamental'), `关键词"${s}"能 100% 区分类型`);
+  }
+  // 2) 两个典型的"朴素关键词分类器"都会判错：情绪词/基本面词在两类标题里交叉出现
+  const sentWords = ['传闻', '传言', '流传', '未予证实', '暂无公告', '减持', '追捧', '涨停', '异动', '自媒体', '看多', '抛压'];
+  const fundWords = ['业绩', '利润', '订单', '合同', '监管', '再融资', '需求', '营收', '经营'];
+  const byS = (h) => (sentWords.some((w) => h.text.includes(w)) ? 'sentiment' : 'fundamental');
+  const byF = (h) => (fundWords.some((w) => h.text.includes(w)) ? 'fundamental' : 'sentiment');
+  const accS = hs.filter((h) => byS(h) === h.kind).length / hs.length, accF = hs.filter((h) => byF(h) === h.kind).length / hs.length;
+  assert.ok(accS < 1 && accF < 1, `朴素分类器不应 100% 正确：情绪词 ${accS}，基本面词 ${accF}`);
+  assert.ok(hs.some((h) => h.kind === 'sentiment' && fundWords.some((w) => h.text.includes(w))), '应有含基本面词汇的情绪标题');
+  assert.ok(hs.some((h) => h.kind === 'fundamental' && sentWords.some((w) => h.text.includes(w))), '应有含情绪词汇的基本面标题');
+});
+
+test('新闻：同一周同一家公司不会同时出现方向相反的两条', () => {
+  const dir = Object.fromEntries(Events.CARDS.map((c) => [c.id, c.dir]));
+  let twoEvent = 0;
+  for (let seed = 1; seed <= 150; seed++) {
+    const end = playOut(State.newGame(seed));
+    const byTurn = {};
+    for (const e of end.eventLog) (byTurn[e.turn] = byTurn[e.turn] || []).push(e);
+    for (const evs of Object.values(byTurn)) {
+      if (evs.length < 2) continue;
+      twoEvent++;
+      const d = {};
+      for (const e of evs) for (const id of Object.keys(e.effects)) { if (d[id] !== undefined) assert.equal(d[id], dir[e.cardId], `seed ${seed}：同周同公司方向相反`); d[id] = dir[e.cardId]; }
+    }
+  }
+  assert.ok(twoEvent > 20, '样本里应有足够多的同周双事件');
+});
