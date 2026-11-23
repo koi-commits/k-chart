@@ -26,7 +26,32 @@ const GameView = (() => {
     $('statAssets').innerHTML = `<span class="${cls(a - GameConfig.initialCash)}">${money(a)}</span>`;
     $('statCash').textContent = money(state.cash);
     $('statPoints').textContent = `${state.pointsLeft}/${GameConfig.research.pointsPerTurn}`;
+    renderGoal(state, upto);
     $('newsBox').innerHTML = state.news.map((n) => `<span class="item">${esc(n.headline)}</span>`).join('');
+  }
+
+  /** 目标进度：收益率 vs（基准 + 目标），最大回撤 vs 上限。回撤超过上限的 75% 起变橙，超限变红 */
+  function renderGoal(state, upto) {
+    const p = GameSummary.progress(state, upto);
+    const lo = Math.min(-10, p.returnPct, p.benchPct) - 5, hi = Math.max(40, p.targetPct, p.returnPct) + 5;
+    const X = (v) => ((v - lo) / (hi - lo)) * 100;
+    const zero = X(0), cur = X(p.returnPct);
+    const sg = (v) => (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+    const retHtml = `<div class="meter ${p.returnReached ? 'reached' : ''}">
+      <div class="m-head"><span>收益率 <b class="${cls(p.returnPct)}">${sg(p.returnPct)}</b></span>
+        <span class="muted">目标 <b class="gold">${sg(p.targetPct)}</b>（基准 ${sg(p.benchPct)} + ${GameConfig.winMarginPct}）${p.returnReached ? ' <b class="up">✔ 已达标</b>' : ''}</span></div>
+      <div class="m-track"><div class="m-zero" style="left:${zero}%"></div>
+        <div class="m-fill ${p.returnPct >= 0 ? 'pos' : 'neg'}" style="left:${Math.min(zero, cur)}%;width:${Math.abs(cur - zero)}%"></div>
+        <div class="m-tick bench" style="left:${X(p.benchPct)}%" title="等权基准 ${sg(p.benchPct)}"></div>
+        <div class="m-tick target" style="left:${X(p.targetPct)}%" title="目标线 ${sg(p.targetPct)}"></div></div></div>`;
+    const ddMax = p.ddLimit * 1.25, ddPct = (v) => Math.min(100, (v / ddMax) * 100);
+    const note = p.ddLevel === 'over' ? '<b class="dd-over">已超上限，本局无法获胜</b>' : p.ddLevel === 'warn' ? '<b class="dd-warn">接近上限！</b>' : '';
+    const ddHtml = `<div class="meter dd-${p.ddLevel}">
+      <div class="m-head"><span>最大回撤 <b class="dd-val">${(p.maxDD * 100).toFixed(1)}%</b> <span class="muted">（当前距高点 ${(p.curDD * 100).toFixed(1)}%）</span> ${note}</span>
+        <span class="muted">上限 <b>${(p.ddLimit * 100).toFixed(0)}%</b>，须低于此值</span></div>
+      <div class="m-track"><div class="m-fill dd" style="left:0;width:${ddPct(p.maxDD)}%"></div>
+        <div class="m-tick limit" style="left:${ddPct(p.ddLimit)}%" title="回撤上限 ${(p.ddLimit * 100).toFixed(0)}%"></div></div></div>`;
+    $('goalBox').innerHTML = retHtml + ddHtml;
   }
 
   function renderCompanies(state, ui, upto) {

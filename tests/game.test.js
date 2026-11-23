@@ -200,3 +200,46 @@ test('复盘所需数据：V 路径与 K 线对齐、事件带文本、研究史
   const end = playOut(s);
   assert.ok(end.eventLog.length > 0 && end.eventLog.every((e) => typeof e.headline === 'string' && e.effects));
 });
+
+test('summary.progress：收益率/基准/回撤与回撤等级', () => {
+  const Summary = G('summary.js');
+  let s = State.newGame(5);
+  let p = Summary.progress(s);
+  assert.equal(p.returnPct, 0); assert.equal(p.benchPct, 0); assert.equal(p.maxDD, 0);
+  assert.equal(p.targetPct, Config.winMarginPct);
+  s = State.advanceTurn(s, { orders: [{ id: 'jzjy', side: 'buy', shares: 300 }] });
+  p = Summary.progress(s);
+  assert.ok(Math.abs(p.benchPct - State.benchmarkReturnPct(s)) < 1e-9);
+  assert.ok(Math.abs(p.targetPct - (p.benchPct + Config.winMarginPct)) < 1e-12);
+  assert.ok(Math.abs(p.maxDD - State.maxDrawdown(s.equity)) < 1e-12);
+  // 回放：upto 少 5 根 = 回合开始前的状态
+  const base = s.candles.jzjy.length - 5;
+  assert.equal(Summary.progress(s, base + 5).assets, p.assets);
+  assert.equal(Summary.progress(s, base + 1).maxDD <= p.maxDD, true);
+  // 回撤等级阈值来自 config（上限的 75% 起警告）
+  const fake = JSON.parse(JSON.stringify(s));
+  fake.equity[fake.equity.length - 1].assets = 1; // 直接制造大回撤
+  assert.equal(Summary.progress(fake).ddLevel, 'over');
+  assert.ok(Math.abs(p.ddWarnAt - Config.winMaxDrawdown * 0.75) < 1e-12);
+});
+
+test('summary.weekSummary：各公司盈亏之和 = 本周总资产变化；不泄露真实价值', () => {
+  const Summary = G('summary.js');
+  let s = State.newGame(21);
+  const ids = Object.keys(s.companies);
+  for (let t = 1; t <= 6; t++) {
+    const prevAssets = s.equity[s.equity.length - 1].assets;
+    const orders = t === 1 ? ids.map((id) => ({ id, side: 'buy', shares: 100 }))
+      : t === 4 ? [{ id: ids[0], side: 'sell', shares: 100 }] : [{ id: ids[t % 4], side: 'buy', shares: 100 }];
+    s = State.advanceTurn(s, { orders });
+    const w = Summary.weekSummary(s, t);
+    const sum = w.rows.reduce((a, r) => a + r.pnl, 0);
+    assert.ok(Math.abs(sum - w.total) < 0.05, `第${t}回合 分项之和 ${sum} ≠ 总计 ${w.total}`);
+    assert.ok(Math.abs(w.total - (s.equity[s.equity.length - 1].assets - prevAssets)) < 0.2, `第${t}回合 总盈亏应等于总资产变化`);
+    assert.equal(w.fees, Math.round(w.trades.reduce((a, x) => a + x.fee, 0) * 100) / 100);
+    const text = JSON.stringify(w);
+    assert.ok(!('V' in w) && !/trueV|vLog|sShift|fundamental|sentiment/.test(text), '小结不得包含真实价值或事件性质');
+  }
+  const h = Summary.historyOf(s, 3);
+  assert.ok(!/trueV/.test(JSON.stringify(h)));
+});
