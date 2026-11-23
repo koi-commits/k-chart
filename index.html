@@ -16,6 +16,7 @@
         <span>现金 <b id="statCash">—</b></span>
         <span>研究点 <b id="statPoints">—</b></span>
         <span class="top-actions">
+          <button class="link-btn" id="btnRules" title="查看规则说明">规则</button>
           <button class="link-btn" id="btnRestart" title="放弃当前对局，重新开始">重新开始</button>
           <button class="link-btn danger" id="btnQuit" title="自动存档后退出游戏">退出游戏</button>
         </span>
@@ -55,6 +56,8 @@
   <div id="settlement" class="overlay" hidden></div>
   <!-- 复盘页 -->
   <div id="review" class="overlay review" hidden></div>
+  <!-- 规则说明 -->
+  <div id="rules" class="overlay rules" hidden></div>
 
   <script src="lib/lightweight-charts.js"></script>
   <script src="js/game/config.js"></script>
@@ -71,6 +74,7 @@
   <script src="js/ui/view.js"></script>
   <script src="js/ui/replay.js"></script>
   <script src="js/ui/review.js"></script>
+  <script src="js/ui/rules.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

@@ -1,0 +1,42 @@
+/* ui/rules.js — 规则说明页（一页纸，不是分步教程）
+   所有数值从 GameConfig / GameResearch 读取，改 config 后文案自动同步。
+   第一次启动自动弹出；之后可从顶部"规则"按钮再次打开。 */
+const GameRules = (() => {
+  const SEEN_KEY = 'kline-game-v0-rules-seen';
+  const C = () => GameConfig;
+  const money = (n) => '¥' + n.toLocaleString('zh-CN');
+  const num = (x) => String(+x.toFixed(2)); // 去掉多余的 0
+
+  function lines() {
+    const c = C(), f = c.fees, R = c.research;
+    const sig = (p) => (GameResearch.sigmaFor(p) * 100).toFixed(0);
+    return [
+      ['🎯 目标', `在 ${c.totalTurns} 回合内，让收益率比"开局把本金平均买入 4 家公司并一直持有"的基准高出 <b>${c.winMarginPct} 个百分点</b>，且最大回撤低于 <b>${(c.winMaxDrawdown * 100).toFixed(0)}%</b>。本金 ${money(c.initialCash)}，总资产跌破 ${money(c.bankruptcyLine)} 直接判负。`],
+      ['📅 时间', `每回合代表<b>一周</b>（${c.daysPerTurn} 个交易日）。点"结束回合"，本周的日 K 会逐根播放出来。`],
+      ['🔬 研究', `每回合有 <b>${R.pointsPerTurn} 个研究点</b>。给一家公司投入研究点，会得到它"真实价值"的估计：投入越多误差越小（1 点约 ±${sig(1)}%，${R.pointsPerTurn} 点约 ±${sig(R.pointsPerTurn)}%）。估值 <b>${R.validTurns} 回合</b>后过期。股价围着真实价值波动，偏离的部分是情绪，会逐渐回归。`],
+      ['📰 新闻', `新闻讲的是<b>上周已经发生</b>的事，价格已经反映了。用它判断那次涨跌是基本面（真实价值变了）还是情绪（只是价格变了）。`],
+      ['📝 成交', `订单在<b>下周一开盘价</b>成交，先卖后买。<b>T+1</b>：当天买入的股票当天不能卖。涨停（+${(c.limitPct * 100).toFixed(0)}%）买不进，跌停（−${(c.limitPct * 100).toFixed(0)}%）卖不出。`],
+      ['💰 费用', `佣金万${num(f.commissionRate * 1e4)}（最低 ${money(f.minCommission)}），卖出另收印花税千${num(f.stampDutyRate * 1e3)}，过户费万${num(f.transferFeeRate * 1e4)}；大额订单还有市场冲击。`],
+      ['🎲 每局不同', `4 家公司的增长、波动、负债每局随机，你看不到。结算后的"复盘"会揭晓真相。`]
+    ];
+  }
+
+  function render(first) {
+    const el = document.getElementById('rules');
+    el.innerHTML = `<div class="card rules-card">
+      <h2>规则说明</h2>
+      <ol class="rules-list">${lines().map(([h, t]) => `<li><b class="rl-h">${h}</b><span>${t}</span></li>`).join('')}</ol>
+      <div class="actions"><button class="primary" data-action="rules-close">${first ? '开始游戏' : '知道了'}</button></div>
+    </div>`;
+    el.hidden = false;
+  }
+
+  function seen() { try { return !!localStorage.getItem(SEEN_KEY); } catch (e) { return true; } } // 读不了存储就别反复弹
+  function markSeen() { try { localStorage.setItem(SEEN_KEY, '1'); } catch (e) { /* ignore */ } }
+
+  function open(first) { render(!!first); }
+  function close() { document.getElementById('rules').hidden = true; markSeen(); }
+  function isOpen() { return !document.getElementById('rules').hidden; }
+
+  return { open, close, isOpen, seen, lines };
+})();

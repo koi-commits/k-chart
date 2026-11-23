@@ -19,6 +19,10 @@ const App = (() => {
 
   function persist() { if (!state || !record) return; touchTime(); GameSave.save(state, record); }
 
+  /** 打开/关闭规则页；阅读规则的时间不计入回合耗时 */
+  function openRules(first) { if (record) touchTime(); GameRules.open(first); }
+  function closeRules() { GameRules.close(); segStart = Date.now(); }
+
   /** 退出游戏：先存档，再关闭（Electron 里走 IPC，浏览器里 window.close） */
   function quitGame() {
     persist();
@@ -143,6 +147,7 @@ const App = (() => {
       case 'cancel': cancel(parseInt(d.i, 10)); break;
       case 'restart-confirmed': newGame(); break;
       case 'export': exportRecord(); break;
+      case 'rules-close': closeRules(); break;
       case 'review-open': GameReview.render(state); break;
       case 'review-close': GameReview.close(); break;
     }
@@ -154,6 +159,7 @@ const App = (() => {
     document.addEventListener('click', onClick);
     document.getElementById('btnEndTurn').addEventListener('click', endTurn);
     document.getElementById('btnRestart').addEventListener('click', restart);
+    document.getElementById('btnRules').addEventListener('click', () => openRules(false));
     document.getElementById('btnQuit').addEventListener('click', quitGame);
     window.addEventListener('pagehide', persist);  // 点窗口右上角关闭时也存一次（保存回合耗时）
     window.addEventListener('resize', () => ChartManager.resize());
@@ -165,6 +171,7 @@ const App = (() => {
       render();
       if (state.status === 'ended') GameView.renderSettlement(state);
     } else newGame();
+    if (!GameRules.seen()) openRules(true);   // 第一次开局：弹出规则说明
   }
 
   window.addEventListener('DOMContentLoaded', init);
