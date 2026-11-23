@@ -92,9 +92,9 @@
     return r * 100;
   }
 
-  /** 胜利条件：打完全部回合（未判负），且收益率 ≥ 基准收益率 + winMarginPct */
-  function isWin(outcome, returnPct, benchmarkPct) {
-    return outcome === 'completed' && returnPct >= benchmarkPct + GameConfig.winMarginPct;
+
+  function isWin(outcome, returnPct, benchmarkPct, maxDrawdown) {
+    return outcome === 'completed' && returnPct >= benchmarkPct + GameConfig.winMarginPct && maxDrawdown < GameConfig.winMaxDrawdown;
   }
 
   function advanceTurn(state, actions) {
@@ -178,7 +178,7 @@
         totalAssets: assets,
         returnPct,
         benchmarkReturnPct: benchPct,
-        win: isWin(s.endReason, returnPct, benchPct),
+        win: isWin(s.endReason, returnPct, benchPct, maxDrawdown(s.equity)),
         maxDrawdown: maxDrawdown(s.equity),
         truth: ids.map((id) => ({ id, name: s.companies[id].name, V: Math.round(s.companies[id].V * 100) / 100, price: lastClose(s, id) }))
       };

@@ -160,7 +160,7 @@ const GameView = (() => {
         <div><span>最大回撤</span><b class="down">${(r.maxDrawdown * 100).toFixed(2)}%</b></div>
       </div>
       <div style="margin-bottom:14px">${r.win ? '<b class="up">✔ 胜利</b>' : '<b class="muted">✘ 未达成胜利</b>'}
-        <span class="muted">　条件：打完 ${GameConfig.totalTurns} 回合且收益率 ≥ 基准 + ${GameConfig.winMarginPct} 个百分点（你 ${(r.returnPct - r.benchmarkReturnPct >= 0 ? '+' : '') + (r.returnPct - r.benchmarkReturnPct).toFixed(2)} 个百分点）</span></div>
+        <span class="muted">　条件：打完 ${GameConfig.totalTurns} 回合，收益率 ≥ 基准 + ${GameConfig.winMarginPct} 个百分点（你 ${(r.returnPct - r.benchmarkReturnPct >= 0 ? '+' : '') + (r.returnPct - r.benchmarkReturnPct).toFixed(2)}），且最大回撤 &lt; ${(GameConfig.winMaxDrawdown * 100).toFixed(0)}%（你 ${(r.maxDrawdown * 100).toFixed(1)}%）</span></div>
       <div class="muted" style="margin-bottom:6px">真相揭晓：每家公司的真实价值</div>
       <table><tr><th>公司</th><th>真实价值 V</th><th>期末股价</th><th>价格偏离</th><th>你最后一次估值</th></tr>${rows}</table>
       <div class="actions"><button class="primary" data-action="restart-confirmed">再来一局</button></div>

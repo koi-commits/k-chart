@@ -186,7 +186,7 @@ function main() {
 
   const pad = (s, n) => String(s).padEnd(n);
   console.log(`每个 bot ${games} 局（种子 ${seed0}..${seed0 + games - 1}，所有 bot 面对相同的市场与相同的公司参数），耗时 ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-  console.log(`胜利条件：打完 ${Config.totalTurns} 回合且收益率 ≥ 等权持有基准 + ${Config.winMarginPct} 个百分点；基准平均收益 ${R.equal.benchMean.toFixed(2)}%\n`);
+  console.log(`胜利条件：打完 ${Config.totalTurns} 回合，收益率 ≥ 等权持有基准 + ${Config.winMarginPct} 个百分点，且最大回撤 < ${(Config.winMaxDrawdown * 100).toFixed(0)}%；基准平均收益 ${R.equal.benchMean.toFixed(2)}%\n`);
   console.log(pad('', 16) + pad('平均收益率', 12) + pad('收益率中位数', 14) + pad('胜率', 9) + pad('平均最大回撤', 14) + pad('判负率', 8) + '对等权配对差(±标准误)');
   for (const r of [R.research, R.randval, R.random, R.equal, ...singles]) {
     const pd = paired(r, R.equal);
@@ -206,6 +206,7 @@ function main() {
   check(singles.every((s) => { const p = paired(s, R.equal); return p.mean < 2 * p.se; }), '任何押单一公司 bot 都不显著高于等权持有（配对差 < 2 倍标准误）',
     `（最高：${worst.s.name} ${worst.p.mean >= 0 ? '+' : ''}${worst.p.mean.toFixed(2)} ±${worst.p.se.toFixed(2)}）`);
   check(R.research.winRate >= 35 && R.research.winRate <= 60, '研究 bot 胜率在 35%–60%', `（${R.research.winRate.toFixed(1)}%）`);
+  check(singles.every((s) => s.winRate <= 10), '所有押单一公司 bot 胜率 ≤ 10%', `（${singles.map((s) => s.winRate.toFixed(1) + '%').join(' / ')}）`);
   check([R.equal, R.random, R.randval].every((r) => r.winRate <= 15), '等权持有 / 随机交易 / 随机估值 bot 胜率 ≤ 15%',
     `（${R.equal.winRate.toFixed(1)}% / ${R.random.winRate.toFixed(1)}% / ${R.randval.winRate.toFixed(1)}%）`);
 }

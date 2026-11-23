@@ -60,13 +60,16 @@ test('行业范围有重叠且 growth 中点相同（不存在必涨行业）', 
   assert.equal(Companies.ids().length, 4);
 });
 
-test('胜利条件：完成全部回合且收益率 ≥ 基准 + X', () => {
-  const X = Config.winMarginPct;
-  assert.equal(State.isWin('completed', 10 + X, 10), true);          // 恰好达标
-  assert.equal(State.isWin('completed', 10 + X - 0.01, 10), false);  // 差一点
-  assert.equal(State.isWin('completed', 50, 10 + 50), false);        // 基准更高
-  assert.equal(State.isWin('bankrupt', 500, 0), false);              // 判负永远不算胜
-  assert.equal(State.isWin('completed', -20, -45), true);            // 熊市跑赢基准也算
+test('胜利条件：完成全部回合、收益率 ≥ 基准 + X、最大回撤 < Y', () => {
+  const X = Config.winMarginPct, Y = Config.winMaxDrawdown;
+  assert.equal(State.isWin('completed', 10 + X, 10, 0.1), true);              // 恰好达标
+  assert.equal(State.isWin('completed', 10 + X - 0.01, 10, 0.1), false);      // 收益差一点
+  assert.equal(State.isWin('completed', 50, 10 + 50, 0.1), false);            // 基准更高
+  assert.equal(State.isWin('bankrupt', 500, 0, 0.1), false);                  // 判负永远不算胜
+  assert.equal(State.isWin('completed', -20, -45 - X + 25, 0.1), true);       // 熊市跑赢基准也算
+  assert.equal(State.isWin('completed', 100, 0, Y - 0.001), true);            // 回撤刚好够小
+  assert.equal(State.isWin('completed', 100, 0, Y), false);                   // 回撤 = Y 不算（严格小于）
+  assert.equal(State.isWin('completed', 100, 0, 0.6), false);                 // 收益再高，回撤过大也不算
 });
 
 test('基准收益率 = 开局开盘价等权买入持有至今', () => {
@@ -77,7 +80,7 @@ test('基准收益率 = 开局开盘价等权买入持有至今', () => {
   assert.ok(Math.abs(State.benchmarkReturnPct(s) - expected) < 1e-9);
   const end = playOut(s);
   assert.equal(end.result.benchmarkReturnPct, State.benchmarkReturnPct(end));
-  assert.equal(end.result.win, State.isWin(end.result.outcome, end.result.returnPct, end.result.benchmarkReturnPct));
+  assert.equal(end.result.win, State.isWin(end.result.outcome, end.result.returnPct, end.result.benchmarkReturnPct, end.result.maxDrawdown));
 });
 
 test('游戏流程：20 回合结束、结算字段齐全', () => {
