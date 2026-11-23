@@ -141,6 +141,29 @@ function singleBot(targetId) {
   };
 }
 
+// ── Bot 6：躺平 bot —— 第 1 回合随机全仓一家公司；总资产收益率一旦达到阈值，清仓持现金到结束 ──
+// 用来堵"先暴富、后躺平"：运气好的一两周之后什么都不做，不应该能赢。
+function idleBot(threshold) {
+  return function (seed) {
+    const rng = Rng.create(Rng.deriveState(seed, 77));
+    let idle = false;
+    return function act(state) {
+      const ids = Object.keys(state.companies);
+      if (state.turn === 1) {
+        const id = rng.pick(ids);
+        const lots = Math.floor(Trading.maxAffordable(state.cash / 1.01, State.lastClose(state, id)) / LOT);
+        return { orders: [{ id, side: 'buy', shares: lots * LOT }] };
+      }
+      if (idle) return {};
+      if (State.totalAssets(state) / Config.initialCash - 1 >= threshold) {
+        idle = true;
+        return { orders: ids.filter((id) => state.positions[id] && state.positions[id].shares > 0).map((id) => ({ id, side: 'sell', shares: state.positions[id].shares })) };
+      }
+      return {};
+    };
+  };
+}
+
 function playGame(seed, makeBot) {
   let s = State.newGame(seed);
   const act = makeBot(seed);
@@ -153,14 +176,14 @@ const mean = (a) => a.reduce((x, y) => x + y, 0) / a.length;
 const std = (a) => { const m = mean(a); return Math.sqrt(mean(a.map((x) => (x - m) ** 2))); };
 
 function run(name, makeBot, games, seed0) {
-  const rets = [], dds = [], bench = []; let wins = 0, busts = 0;
+  const rets = [], dds = [], bench = []; let wins = 0, busts = 0, qs = 0;
   for (let i = 0; i < games; i++) {
     const r = playGame(seed0 + i, makeBot);
-    rets.push(r.returnPct); dds.push(r.maxDrawdown * 100); bench.push(r.benchmarkReturnPct);
+    rets.push(r.returnPct); dds.push(r.maxDrawdown * 100); bench.push(r.benchmarkReturnPct); qs += r.quartersBeaten;
     if (r.win) wins++;
     if (r.outcome === 'bankrupt') busts++;
   }
-  return { name, rets, mean: mean(rets), median: median(rets), winRate: wins / games * 100, mdd: mean(dds), busts: busts / games * 100, benchMean: mean(bench) };
+  return { name, rets, mean: mean(rets), median: median(rets), winRate: wins / games * 100, mdd: mean(dds), busts: busts / games * 100, benchMean: mean(bench), qBeaten: qs / games };
 }
 
 /** 配对差 a − b：{mean, se} */
@@ -182,16 +205,17 @@ function main() {
     random: run('随机交易 bot', randomBot, games, seed0),
     equal: run('等权持有 bot', equalWeightBot, games, seed0)
   };
+  const idles = [0.25, 0.30, 0.40].map((th) => run(`躺平 +${th * 100}%`, idleBot(th), games, seed0));
   const singles = ids.map((id) => run('押' + names[id], singleBot(id), games, seed0));
 
   const pad = (s, n) => String(s).padEnd(n);
   console.log(`每个 bot ${games} 局（种子 ${seed0}..${seed0 + games - 1}，所有 bot 面对相同的市场与相同的公司参数），耗时 ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-  console.log(`胜利条件：打完 ${Config.totalTurns} 回合，收益率 ≥ 等权持有基准 + ${Config.winMarginPct} 个百分点，且最大回撤 < ${(Config.winMaxDrawdown * 100).toFixed(0)}%；基准平均收益 ${R.equal.benchMean.toFixed(2)}%\n`);
-  console.log(pad('', 16) + pad('平均收益率', 12) + pad('收益率中位数', 14) + pad('胜率', 9) + pad('平均最大回撤', 14) + pad('判负率', 8) + '对等权配对差(±标准误)');
-  for (const r of [R.research, R.randval, R.random, R.equal, ...singles]) {
+  console.log(`胜利条件：打完 ${Config.totalTurns} 回合，收益率 ≥ 等权持有基准 + ${Config.winMarginPct} 个百分点，最大回撤 < ${(Config.winMaxDrawdown * 100).toFixed(0)}%，且 ${Config.quarters} 个季度中至少 ${Config.winMinQuarters} 个跑赢基准；基准平均收益 ${R.equal.benchMean.toFixed(2)}%\n`);
+  console.log(pad('', 16) + pad('平均收益率', 12) + pad('收益率中位数', 14) + pad('胜率', 9) + pad('平均最大回撤', 14) + pad('判负率', 8) + pad('跑赢季度', 9) + '对等权配对差(±标准误)');
+  for (const r of [R.research, R.randval, R.random, R.equal, ...singles, ...idles]) {
     const pd = paired(r, R.equal);
     console.log(pad(r.name, 16) + pad(r.mean.toFixed(2) + '%', 12) + pad(r.median.toFixed(2) + '%', 14) + pad(r.winRate.toFixed(1) + '%', 9) +
-      pad(r.mdd.toFixed(2) + '%', 14) + pad(r.busts.toFixed(1) + '%', 8) + (r === R.equal ? '—' : `${pd.mean >= 0 ? '+' : ''}${pd.mean.toFixed(2)} ±${pd.se.toFixed(2)}`));
+      pad(r.mdd.toFixed(2) + '%', 14) + pad(r.busts.toFixed(1) + '%', 8) + pad(r.qBeaten.toFixed(2), 9) + (r === R.equal ? '—' : `${pd.mean >= 0 ? '+' : ''}${pd.mean.toFixed(2)} ±${pd.se.toFixed(2)}`));
   }
 
   // ── 验收 ──
@@ -207,9 +231,10 @@ function main() {
     `（最高：${worst.s.name} ${worst.p.mean >= 0 ? '+' : ''}${worst.p.mean.toFixed(2)} ±${worst.p.se.toFixed(2)}）`);
   check(R.research.winRate >= 35 && R.research.winRate <= 60, '研究 bot 胜率在 35%–60%', `（${R.research.winRate.toFixed(1)}%）`);
   check(singles.every((s) => s.winRate <= 10), '所有押单一公司 bot 胜率 ≤ 10%', `（${singles.map((s) => s.winRate.toFixed(1) + '%').join(' / ')}）`);
+  check(idles.every((s) => s.winRate <= 10), '所有躺平 bot 胜率 ≤ 10%', `（${idles.map((s) => s.name + ' ' + s.winRate.toFixed(1) + '%').join(' / ')}）`);
   check([R.equal, R.random, R.randval].every((r) => r.winRate <= 15), '等权持有 / 随机交易 / 随机估值 bot 胜率 ≤ 15%',
     `（${R.equal.winRate.toFixed(1)}% / ${R.random.winRate.toFixed(1)}% / ${R.randval.winRate.toFixed(1)}%）`);
 }
 
 if (require.main === module) main();
-module.exports = { playGame, randomBot, researchBot, randomValuationBot, equalWeightBot, singleBot, run };
+module.exports = { playGame, randomBot, researchBot, randomValuationBot, equalWeightBot, singleBot, idleBot, run };

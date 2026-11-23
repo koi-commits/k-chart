@@ -51,7 +51,14 @@ const GameView = (() => {
         <span class="muted">上限 <b>${(p.ddLimit * 100).toFixed(0)}%</b>，须低于此值</span></div>
       <div class="m-track"><div class="m-fill dd" style="left:0;width:${ddPct(p.maxDD)}%"></div>
         <div class="m-tick limit" style="left:${ddPct(p.ddLimit)}%" title="回撤上限 ${(p.ddLimit * 100).toFixed(0)}%"></div></div></div>`;
-    $('goalBox').innerHTML = retHtml + ddHtml;
+    const Q = p.quarter, sgp = (v) => (v >= 0 ? '+' : '') + v.toFixed(1);
+    const pillTxt = { beat: '✔', miss: '✘', cur: '●', future: '·' };
+    const pills = Q.pills.map((k, i) => `<span class="q-pill ${k}" title="第 ${i + 1} 季度">${i + 1}${pillTxt[k]}</span>`).join('');
+    const qHtml = `<div class="meter quarter ${Q.impossible ? 'q-impossible' : ''}">
+      <div class="m-head"><span>季度考核 · 第 <b>${Q.q}</b>/${Q.total} 季度 第 <b>${Q.turnInQuarter}</b>/${Q.length} 回合　本季度相对基准 <b class="${cls(Q.diff)}">${sgp(Q.diff)} 点</b> <span class="muted">（你 ${sgp(Q.playerPct)}% / 基准 ${sgp(Q.benchPct)}%）</span></span>
+        <span>已跑赢 <b>${Q.beaten}/${Q.total}</b> 个季度 <span class="muted">（至少 ${Q.need}）</span> ${Q.impossible ? '<b class="dd-over">季度条件已无法满足</b>' : ''}</span></div>
+      <div class="q-pills">${pills}</div></div>`;
+    $('goalBox').innerHTML = retHtml + ddHtml + qHtml;
   }
 
   function renderCompanies(state, ui, upto) {
@@ -169,6 +176,57 @@ const GameView = (() => {
     $('logPanel').innerHTML = `<div><b>第 ${w.turn} 回合结果</b></div>${rows.join('') || '<div>本回合无交易。</div>'}`;
   }
 
+  const sg2 = (v) => (v >= 0 ? '+' : '') + v.toFixed(2);
+
+  /** 三条胜利条件逐条列出，写清"差多少" */
+  function conditionsHtml(r) {
+    const X = GameConfig.winMarginPct, Y = GameConfig.winMaxDrawdown * 100, Z = GameConfig.winMinQuarters;
+    const gap = r.returnPct - r.benchmarkReturnPct;
+    const c1 = r.outcome === 'completed' && gap >= X, c2 = r.maxDrawdown * 100 < Y, c3 = r.quartersBeaten >= Z;
+    const li = (ok, txt) => `<li class="${ok ? 'ok' : 'no'}"><b>${ok ? '✔' : '✘'}</b> ${txt}</li>`;
+    return `<ul class="conds">
+      ${li(c1, `总收益率比基准高出至少 ${X} 个百分点：你的收益率 ${sg2(r.returnPct)}%，基准 ${sg2(r.benchmarkReturnPct)}%，<b>${gap >= 0 ? '高出' : '低于'} ${Math.abs(gap).toFixed(2)} 点</b>（需 ≥ ${X}）${r.outcome === 'bankrupt' ? '（中途判负）' : ''}`)}
+      ${li(c2, `最大回撤低于 ${Y.toFixed(0)}%：你的最大回撤 ${(r.maxDrawdown * 100).toFixed(2)}%`)}
+      ${li(c3, `${GameConfig.quarters} 个季度中至少 ${Z} 个跑赢基准：你跑赢了 <b>${r.quartersBeaten}</b> 个`)}</ul>`;
+  }
+
+  function quarterTableHtml(quarters) {
+    const rows = Array.from({ length: GameConfig.quarters }, (_, i) => {
+      const x = quarters[i];
+      return x ? `<tr><td>第 ${i + 1} 季度</td><td class="${cls(x.playerPct)}">${sg2(x.playerPct)}%</td><td class="${cls(x.benchPct)}">${sg2(x.benchPct)}%</td>
+        <td class="${cls(x.diff)}">${sg2(x.diff)} 点</td><td>${x.beat ? '<b class="up">✔ 跑赢</b>' : '<span class="muted">✘ 未跑赢</span>'}</td></tr>`
+        : `<tr><td>第 ${i + 1} 季度</td><td colspan="4" class="muted">未打到</td></tr>`;
+    }).join('');
+    return `<table class="qtable"><tr><th>季度成绩</th><th>你的收益率</th><th>基准收益率</th><th>差距</th><th>结果</th></tr>${rows}</table>`;
+  }
+
+  /** 季度成绩单（每个季度结束时弹出） */
+  function renderQuarterReport(state, q) {
+    const res = GameState.quarterResults(state);
+    const x = res[q - 1], beaten = res.filter((r) => r.beat).length, Z = GameConfig.winMinQuarters;
+    const left = GameConfig.quarters - res.length, need = Math.max(0, Z - beaten);
+    const L = GameConfig.quarterLength;
+    const status = beaten + left < Z ? '<b class="dd-over">已无法满足季度条件，本局无法获胜（仍可继续玩）。</b>'
+      : need === 0 ? '<b class="up">季度条件已满足 ✔</b>（其余两条仍需达成）'
+      : `还剩 ${left} 个季度，至少还需跑赢 <b>${need}</b> 个。`;
+    const last = q >= GameConfig.quarters || state.status === 'ended';
+    const el = $('quarter');
+    el.innerHTML = `<div class="card weekly-card">
+      <h2>第 ${q} 季度成绩单 <span class="muted" style="font-size:13px;font-weight:400">（第 ${(q - 1) * L + 1}–${q * L} 回合）</span></h2>
+      <div class="sub">本季度的收益率与等权基准的本季度收益率比较（基准在季度内同样是一直持有）。</div>
+      <div class="wk-big"><div><span>你的本季度收益率</span><b class="${cls(x.playerPct)}">${sg2(x.playerPct)}%</b></div>
+        <div><span>基准本季度收益率</span><b class="${cls(x.benchPct)}">${sg2(x.benchPct)}%</b></div>
+        <div><span>差距</span><b class="${cls(x.diff)}">${sg2(x.diff)} 点</b></div></div>
+      <div style="margin-bottom:12px;font-size:15px">${x.beat ? '<b class="up">✔ 本季度跑赢基准</b>' : '<b class="muted">✘ 本季度未跑赢基准</b>'}</div>
+      ${quarterTableHtml(res)}
+      <div style="margin:10px 0 4px">累计跑赢 <b>${beaten}/${GameConfig.quarters}</b> 个季度（胜利至少需要 ${Z} 个）。${status}</div>
+      <div class="actions"><button class="primary" data-action="quarter-close" id="btnQuarterClose">${last ? '查看结算 ▶' : '继续 ▶'}</button></div>
+    </div>`;
+    el.hidden = false;
+    const b = document.getElementById('btnQuarterClose'); if (b) b.focus();
+  }
+  function hideQuarterReport() { $('quarter').hidden = true; }
+
   function renderSettlement(state) {
     const r = state.result, el = $('settlement');
     const bust = r.outcome === 'bankrupt';
@@ -187,8 +245,9 @@ const GameView = (() => {
         <div><span>等权持有基准</span><b class="${cls(r.benchmarkReturnPct)}">${(r.benchmarkReturnPct >= 0 ? '+' : '') + r.benchmarkReturnPct.toFixed(2)}%</b></div>
         <div><span>最大回撤</span><b class="down">${(r.maxDrawdown * 100).toFixed(2)}%</b></div>
       </div>
-      <div style="margin-bottom:14px">${r.win ? '<b class="up">✔ 胜利</b>' : '<b class="muted">✘ 未达成胜利</b>'}
-        <span class="muted">　条件：打完 ${GameConfig.totalTurns} 回合，收益率 ≥ 基准 + ${GameConfig.winMarginPct} 个百分点（你 ${(r.returnPct - r.benchmarkReturnPct >= 0 ? '+' : '') + (r.returnPct - r.benchmarkReturnPct).toFixed(2)}），且最大回撤 &lt; ${(GameConfig.winMaxDrawdown * 100).toFixed(0)}%（你 ${(r.maxDrawdown * 100).toFixed(1)}%）</span></div>
+      <div style="margin-bottom:8px">${r.win ? '<b class="up" style="font-size:16px">✔ 胜利</b>' : '<b class="muted" style="font-size:16px">✘ 未达成胜利</b>'}<span class="muted">　需要同时满足以下三条：</span></div>
+      ${conditionsHtml(r)}
+      ${quarterTableHtml(r.quarters)}
       <div class="muted" style="margin-bottom:6px">真相揭晓：每家公司的真实价值</div>
       <table><tr><th>公司</th><th>真实价值 V</th><th>期末股价</th><th>价格偏离</th><th>你最后一次估值</th></tr>${rows}</table>
       <div class="export-msg muted" id="exportMsg"></div>
@@ -211,5 +270,5 @@ const GameView = (() => {
     $('btnEndTurn').disabled = state.status !== 'playing' || ui.busy;
   }
 
-  return { renderAll, renderCompanies, renderTopbar, chartTitle, renderSettlement, hideSettlement, limits, quote };
+  return { renderAll, renderCompanies, renderTopbar, chartTitle, renderSettlement, hideSettlement, renderQuarterReport, hideQuarterReport, limits, quote };
 })();

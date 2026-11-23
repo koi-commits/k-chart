@@ -95,8 +95,43 @@
   }
 
 
-  function isWin(outcome, returnPct, benchmarkPct, maxDrawdown) {
-    return outcome === 'completed' && returnPct >= benchmarkPct + GameConfig.winMarginPct && maxDrawdown < GameConfig.winMaxDrawdown;
+  /** 胜利条件：打完全部回合（未判负），收益率 ≥ 基准 + winMarginPct，最大回撤 < winMaxDrawdown，且至少 winMinQuarters 个季度跑赢基准 */
+  function isWin(outcome, returnPct, benchmarkPct, maxDrawdown, quartersBeaten) {
+    return outcome === 'completed' && returnPct >= benchmarkPct + GameConfig.winMarginPct &&
+      maxDrawdown < GameConfig.winMaxDrawdown && quartersBeaten >= GameConfig.winMinQuarters;
+  }
+
+  // ── 季度考核 ──
+  // 时间轴用"已过交易日数 d"：equity[d] = 第 d 个交易日收盘后的总资产（equity[0] = 本金）；
+  // 等权基准指数 bench(d) = 各公司 收盘价/基准买入价 的平均（bench(0) = 1）。
+  const warmDays = () => GameConfig.warmupWeeks * GameConfig.daysPerTurn;
+  const quarterDays = () => GameConfig.quarterLength * GameConfig.daysPerTurn;
+
+  function benchIndexAt(state, d) {
+    if (d <= 0 || !state.benchStart) return 1;
+    const ids = Object.keys(state.companies);
+    return ids.reduce((a, id) => a + state.candles[id][warmDays() + d - 1].close / state.benchStart[id], 0) / ids.length;
+  }
+
+  /** 第 q 个季度（1 起）截至已过 d 个交易日的成绩：{q, done, days, playerPct, benchPct, diff, beat} */
+  function quarterAt(state, q, d) {
+    const s = (q - 1) * quarterDays(), e = Math.min(d, q * quarterDays());
+    const done = d >= q * quarterDays();
+    if (e <= s) return { q, done: false, days: 0, playerPct: 0, benchPct: 0, diff: 0, beat: false };
+    const playerPct = (state.equity[e].assets / state.equity[s].assets - 1) * 100;
+    const benchPct = (benchIndexAt(state, e) / benchIndexAt(state, s) - 1) * 100;
+    return { q, done, days: e - s, playerPct, benchPct, diff: playerPct - benchPct, beat: playerPct > benchPct };
+  }
+
+  /** 已完成的各季度成绩（d 缺省 = 已过的全部交易日） */
+  function quarterResults(state, d) {
+    if (d == null) d = state.equity.length - 1;
+    const out = [];
+    for (let q = 1; q <= GameConfig.quarters; q++) {
+      if (d < q * quarterDays()) break;
+      out.push(quarterAt(state, q, d));
+    }
+    return out;
   }
 
   function advanceTurn(state, actions) {
@@ -179,13 +214,16 @@
       s.status = 'ended';
       const returnPct = (assets / GameConfig.initialCash - 1) * 100;
       const benchPct = benchmarkReturnPct(s);
+      const quarters = quarterResults(s);
+      const quartersBeaten = quarters.filter((x) => x.beat).length;
       s.result = {
         outcome: s.endReason,
         turnsPlayed: finishedTurn,
         totalAssets: assets,
         returnPct,
         benchmarkReturnPct: benchPct,
-        win: isWin(s.endReason, returnPct, benchPct, maxDrawdown(s.equity)),
+        quarters, quartersBeaten,
+        win: isWin(s.endReason, returnPct, benchPct, maxDrawdown(s.equity), quartersBeaten),
         maxDrawdown: maxDrawdown(s.equity),
         truth: ids.map((id) => ({ id, name: s.companies[id].name, V: Math.round(s.companies[id].V * 100) / 100, price: lastClose(s, id) }))
       };
@@ -193,5 +231,5 @@
     return s;
   }
 
-  return { newGame, advanceTurn, totalAssets, maxDrawdown, lastClose, benchmarkReturnPct, isWin };
+  return { newGame, advanceTurn, totalAssets, maxDrawdown, lastClose, benchmarkReturnPct, isWin, quarterResults, quarterAt, benchIndexAt };
 });

@@ -11,7 +11,7 @@ const GameRules = (() => {
     const c = C(), f = c.fees, R = c.research;
     const sig = (p) => (GameResearch.sigmaFor(p) * 100).toFixed(0);
     return [
-      ['🎯 目标', `在 ${c.totalTurns} 回合内，让收益率比"开局把本金平均买入 4 家公司并一直持有"的基准高出 <b>${c.winMarginPct} 个百分点</b>，且最大回撤低于 <b>${(c.winMaxDrawdown * 100).toFixed(0)}%</b>。本金 ${money(c.initialCash)}，总资产跌破 ${money(c.bankruptcyLine)} 直接判负。`],
+      ['🎯 目标', `在 ${c.totalTurns} 回合内，让收益率比"开局把本金平均买入 4 家公司并一直持有"的基准高出 <b>${c.winMarginPct} 个百分点</b>，最大回撤低于 <b>${(c.winMaxDrawdown * 100).toFixed(0)}%</b>，并且 ${c.quarters} 个季度（每 ${c.quarterLength} 回合一个季度，季度末有成绩单）中至少 <b>${c.winMinQuarters} 个</b>跑赢基准。本金 ${money(c.initialCash)}，总资产跌破 ${money(c.bankruptcyLine)} 直接判负。`],
       ['📅 时间', `每回合代表<b>一周</b>（${c.daysPerTurn} 个交易日）。点"结束回合"，本周的日 K 会逐根播放出来。`],
       ['🔬 研究', `每回合有 <b>${R.pointsPerTurn} 个研究点</b>。给一家公司投入研究点，会得到它"真实价值"的估计：投入越多误差越小（1 点约 ±${sig(1)}%，${R.pointsPerTurn} 点约 ±${sig(R.pointsPerTurn)}%）。估值 <b>${R.validTurns} 回合</b>后过期。股价围着真实价值波动，偏离的部分是情绪，会逐渐回归。`],
       ['📰 新闻', `新闻讲的是<b>上周已经发生</b>的事，价格已经反映了。用它判断那次涨跌是基本面（真实价值变了）还是情绪（只是价格变了）。`],

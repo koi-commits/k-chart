@@ -7,14 +7,17 @@
   else root.GameConfig = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
   return {
-    gameVersion: 'v0.1-playtest', // 试玩版本号：显示在界面角落，并写入导出的记录
+    gameVersion: 'v0.2-playtest', // 试玩版本号：显示在界面角落，并写入导出的记录
 
     // ── 规则 ──
     initialCash: 100000,       // 本金
     totalTurns: 20,            // v0 共 20 回合（每回合 = 一周）
     bankruptcyLine: 30000,     // 回合结束时总资产低于此值判负
-    winMaxDrawdown: 0.20,      // 胜利条件：最大回撤必须小于此值（0.20 = 20%）；25% 时"全仓单一公司"仍有 13% 胜率，故收紧
-    winMarginPct: 20,          // 胜利条件：最终收益率 ≥ 等权持有基准收益率 + 此值（百分点）
+    quarters: 4,               // 20 回合分为 4 个季度
+    quarterLength: 5,          // 每季度 5 回合（quarters × quarterLength = totalTurns）
+    winMinQuarters: 3,         // 胜利条件 Z：4 个季度中至少有这么多个季度的收益率高于基准
+    winMaxDrawdown: 0.15,      // 胜利条件 Y：最大回撤必须小于此值（0.15 = 15%）
+    winMarginPct: 18,          // 胜利条件 X：最终收益率 ≥ 等权持有基准收益率 + 此值（百分点）
     daysPerTurn: 5,            // 每回合 5 个交易日
     warmupWeeks: 12,           // 开局前预生成的历史周数（让图表有历史可看）
     lotSize: 100,              // 1 手 = 100 股

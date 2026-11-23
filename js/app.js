@@ -30,9 +30,10 @@ const App = (() => {
     else window.close();
   }
 
-  function newGame() {
+  /** @param restarts 沿用/累计的"重新开始"次数 */
+  function newGame(restarts) {
     state = GameState.newGame(crypto.getRandomValues(new Uint32Array(1))[0]); // 种子在 UI 层生成
-    record = GameRecord.create(state.seed, new Date().toISOString());
+    record = GameRecord.create(state.seed, new Date().toISOString(), restarts || 0);
     segStart = Date.now();
     ui.pending = []; ui.lots = 1; ui.researchN = 1;
     ui.selected = Object.keys(state.companies)[0];
@@ -111,7 +112,8 @@ const App = (() => {
       segStart = Date.now();
       GameSave.save(state, record);
       render();
-      GameWeekly.open(state, turn);   // 回合小结；关闭后若游戏已结束再显示结算
+      ui.weeklyTurn = turn;
+      GameWeekly.open(state, turn);   // 回合小结 →（季度末）季度成绩单 →（游戏结束）结算
     });
   }
 
@@ -121,6 +123,14 @@ const App = (() => {
   function closeWeekly() {
     GameWeekly.close();
     segStart = Date.now();            // 阅读小结的时间不计入下一回合耗时
+    const L = GameConfig.quarterLength;
+    if (ui.weeklyTurn % L === 0 && GameState.quarterResults(state).length >= ui.weeklyTurn / L) GameView.renderQuarterReport(state, ui.weeklyTurn / L);
+    else if (state.status === 'ended') GameView.renderSettlement(state);
+  }
+
+  function closeQuarter() {
+    GameView.hideQuarterReport();
+    segStart = Date.now();
     if (state.status === 'ended') GameView.renderSettlement(state);
   }
 
@@ -147,7 +157,7 @@ const App = (() => {
   function restart() {
     if (ui.busy) return;
     if (state.status === 'playing' && !window.confirm('放弃当前对局并重新开始？')) return;
-    newGame();
+    newGame(record.restartCount + 1);   // 记录"重新开始"次数（取消确认不计）
   }
 
   // ── 事件委托 ──
@@ -162,10 +172,11 @@ const App = (() => {
       case 'order': addOrder(d.side); break;
       case 'fill': fill(d.k); break;
       case 'cancel': cancel(parseInt(d.i, 10)); break;
-      case 'restart-confirmed': newGame(); break;
+      case 'restart-confirmed': newGame(record.restartCount); break;   // 再来一局：沿用次数，不加
       case 'export': exportRecord(); break;
       case 'rules-close': closeRules(); break;
       case 'weekly-close': closeWeekly(); break;
+      case 'quarter-close': closeQuarter(); break;
       case 'hist-go': GameHistory.go(parseInt(d.turn, 10)); break;
       case 'hist-close': closeHistory(); break;
       case 'review-open': GameReview.render(state); break;
@@ -192,7 +203,7 @@ const App = (() => {
       ui.selected = Object.keys(state.companies)[0];
       render();
       if (state.status === 'ended') GameView.renderSettlement(state);
-    } else newGame();
+    } else newGame(0);
     if (!GameRules.seen()) openRules(true);   // 第一次开局：弹出规则说明
   }
 

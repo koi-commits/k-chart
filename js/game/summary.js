@@ -34,6 +34,22 @@
     if (state.benchStart) {
       bench = (ids(state).reduce((a, id) => a + state.candles[id][n - 1].close / state.benchStart[id] - 1, 0) / ids(state).length) * 100;
     }
+    // 季度进度（按已过交易日 d；回放时随 upto 变化）
+    const d = Math.max(0, n - warmDays());
+    const Q = GameConfig.quarters, qd = GameConfig.quarterLength * GameConfig.daysPerTurn;
+    const done = GameState.quarterResults(state, d);
+    const beaten = done.filter((x) => x.beat).length;
+    const qNow = Math.min(Q, Math.floor(d / qd) + 1);                      // 当前（或最后）季度
+    const cur = d >= Q * qd ? done[Q - 1] : GameState.quarterAt(state, qNow, d);
+    const turnNow = Math.min(GameConfig.totalTurns, Math.floor(d / GameConfig.daysPerTurn) + 1);
+    const quarter = {
+      q: qNow, turnInQuarter: ((turnNow - 1) % GameConfig.quarterLength) + 1, length: GameConfig.quarterLength,
+      diff: cur.diff, playerPct: cur.playerPct, benchPct: cur.benchPct,
+      completed: done.length, beaten, total: Q, need: GameConfig.winMinQuarters,
+      // 还没结束的季度（含当前）全部跑赢也凑不够 → 已无法满足季度条件
+      impossible: beaten + (Q - done.length) < GameConfig.winMinQuarters,
+      pills: Array.from({ length: Q }, (_, i) => (i < done.length ? (done[i].beat ? 'beat' : 'miss') : i === done.length ? 'cur' : 'future'))
+    };
     const limit = GameConfig.winMaxDrawdown;
     const warnAt = limit * 0.75;                       // 达到上限的 75%（20% → 15%）开始醒目提示
     return {
@@ -42,7 +58,8 @@
       maxDD, curDD: peak > 0 ? Math.max(0, (peak - last) / peak) : 0,
       ddLimit: limit, ddWarnAt: warnAt,
       ddLevel: maxDD >= limit ? 'over' : maxDD >= warnAt ? 'warn' : 'ok',
-      returnReached: (assets / GameConfig.initialCash - 1) * 100 >= bench + GameConfig.winMarginPct
+      returnReached: (assets / GameConfig.initialCash - 1) * 100 >= bench + GameConfig.winMarginPct,
+      quarter
     };
   }
 
