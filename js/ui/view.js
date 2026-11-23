@@ -141,6 +141,29 @@ const GameView = (() => {
       <span class="chart-legend"><b class="up">▲</b>买入 <b class="down">▼</b>卖出 <i class="cost-sample"></i>持仓成本（不含费用）</span>`;
   }
 
+  // ── 操作提示（toast）：挂在研究/下单面板的按钮旁边，约 4 秒后自动消失 ──
+  const TOAST_MS = 4000;
+  const toasts = {};   // where → { msg, until, timer }
+  const toastHtml = (where) => {
+    const t = toasts[where];
+    return `<div class="op-toast ${t && t.until > Date.now() ? 'show' : ''}" data-where="${where}" role="alert">${t && t.until > Date.now() ? esc(t.msg) : ''}</div>`;
+  };
+  /** 面板重绘后，提示还在有效期内就保持显示（toastHtml 已处理）；这里负责出现、重播动画与定时消失 */
+  function showToast(where, msg) {
+    const t = toasts[where] || (toasts[where] = {});
+    clearTimeout(t.timer);
+    t.msg = msg; t.until = Date.now() + TOAST_MS;
+    const el = document.querySelector(`.op-toast[data-where="${where}"]`);
+    if (el) {
+      el.textContent = msg; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');   // 重启动画
+      const panel = el.closest('.panel'); if (panel) { panel.classList.remove('shake'); void panel.offsetWidth; panel.classList.add('shake'); }
+    }
+    t.timer = setTimeout(() => {
+      const e2 = document.querySelector(`.op-toast[data-where="${where}"]`);
+      if (e2) { e2.classList.remove('show'); e2.textContent = ''; }
+    }, TOAST_MS);
+  }
+
   function renderResearch(state, ui) {
     const id = ui.selected, co = state.companies[id];
     const est = GameResearch.getEstimate(state, id);
@@ -162,6 +185,7 @@ const GameView = (() => {
         <button data-action="rn" data-d="1" ${n >= left ? 'disabled' : ''}>+</button>
         <button data-action="research">投入 ${n} 点研究</button>
       </div>`}
+      ${toastHtml('research')}
       <div class="muted" style="margin-top:6px">估值是对"真实价值"的带误差估计，${R.validTurns} 回合后过期；重新研究会覆盖旧估值。</div>`;
   }
 
@@ -204,7 +228,8 @@ const GameView = (() => {
       <div class="btns">
         <button class="buy" data-action="order" data-side="buy">买入</button>
         <button class="sell" data-action="order" data-side="sell">卖出</button>
-      </div>`;
+      </div>
+      ${toastHtml('order')}`;
   }
 
   function renderPending(state, ui) {
@@ -319,5 +344,5 @@ const GameView = (() => {
     $('btnEndTurn').disabled = state.status !== 'playing' || ui.busy;
   }
 
-  return { renderAll, renderCompanies, renderTopbar, chartTitle, renderSettlement, hideSettlement, renderQuarterReport, hideQuarterReport, limits, quote };
+  return { renderAll, renderCompanies, renderTopbar, chartTitle, renderSettlement, hideSettlement, renderQuarterReport, hideQuarterReport, showToast, limits, quote };
 })();

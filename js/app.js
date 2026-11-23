@@ -43,10 +43,8 @@ const App = (() => {
     render();
   }
 
-  function toast(msg) {
-    const log = document.getElementById('logPanel');
-    log.insertAdjacentHTML('afterbegin', `<div class="err">${msg}</div>`);
-  }
+  /** 操作失败/无效操作的提示：显示在对应面板的操作按钮旁边，醒目，几秒后自动消失 */
+  function toast(msg, where) { GameView.showToast(where || 'order', msg); }
 
   // ── 操作 ──
   function select(id) { ui.selected = id; ui.researchN = 1; render(); }
@@ -58,7 +56,7 @@ const App = (() => {
 
   function doResearch() {
     const res = GameResearch.research(state, ui.selected, Math.min(ui.researchN, state.pointsLeft));
-    if (res.error) return toast(res.error);
+    if (res.error) return toast(res.error, 'research');
     state = res.state;
     ui.researchN = 1;
     const e = state.research[ui.selected];

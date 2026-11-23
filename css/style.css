@@ -235,3 +235,11 @@ button.small { padding: 1px 7px; font-size: 11px; }
 .gh-total { font-size: 15px; margin-bottom: 2px; } .gh-total b { font-size: 24px; font-family: var(--mono); }
 .qtable th.l, .qtable td.l { text-align: left; } .qtable td.l { font-size: 12px; color: var(--muted); }
 .qtable tr.qt-total td { border-top: 2px solid var(--line); font-size: 14px; } .qtable tr.qt-total td.l { color: var(--text); }
+
+/* 操作提示（toast）：贴着按钮，醒目，自动消失 */
+.op-toast { display: none; margin-top: 8px; padding: 7px 10px; border-radius: 5px; background: #4a1d1d; border: 1px solid #ff5252; color: #ffd0d0; font-size: 13px; font-weight: 600; line-height: 1.4; }
+.op-toast.show { display: block; animation: toastIn .18s ease-out, toastOut .4s ease-in 3.6s forwards; }
+@keyframes toastIn { from { transform: translateY(-4px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes toastOut { to { opacity: 0; } }
+.panel.shake { animation: shake .35s; }
+@keyframes shake { 20% { transform: translateX(-5px); } 40% { transform: translateX(5px); } 60% { transform: translateX(-3px); } 80% { transform: translateX(3px); } }
