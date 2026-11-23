@@ -182,17 +182,18 @@ const mean = (a) => a.reduce((x, y) => x + y, 0) / a.length;
 const std = (a) => { const m = mean(a); return Math.sqrt(mean(a.map((x) => (x - m) ** 2))); };
 
 function run(name, makeBot, games, seed0) {
-  const rets = [], dds = [], totals = []; let pass = 0, busts = 0, dead = 0;
+  const rets = [], dds = [], xdds = [], totals = []; let pass = 0, busts = 0, dead = 0, capped = 0, floored = 0;
   const grades = { S: 0, A: 0, B: 0, C: 0, D: 0 };
   for (let i = 0; i < games; i++) {
     const r = playGame(seed0 + i, makeBot);
-    rets.push(r.returnPct); dds.push(r.maxDrawdown * 100); totals.push(r.score.total);
+    rets.push(r.returnPct); dds.push(r.maxDrawdown * 100); xdds.push(r.excessDrawdown * 100); totals.push(r.score.total);
+    if (r.score.drawdown.capped) capped++; if (r.score.totalFloored) floored++;
     grades[r.grade]++; if (r.pass) pass++;
     if (r.outcome === 'bankrupt') busts++;
     if (r.dead10) dead++;
   }
   const pc = (n) => n / games * 100;
-  return { name, rets, mean: mean(rets), median: median(rets), mdd: mean(dds), busts: pc(busts),
+  return { name, rets, mean: mean(rets), median: median(rets), mdd: mean(dds), xdd: mean(xdds), capped: pc(capped), floored: pc(floored), busts: pc(busts),
     meanScore: mean(totals), passRate: pc(pass), dead10: pc(dead), grades: Object.fromEntries(Object.entries(grades).map(([k, v]) => [k, pc(v)])) };
 }
 
@@ -220,13 +221,14 @@ function main() {
 
   const SC = Config.scoring, G = SC.grades, pad = (s, n) => String(s).padEnd(n);
   console.log(`每个 bot ${games} 局（种子 ${seed0}..${seed0 + games - 1}，所有 bot 面对相同的市场与相同的公司参数），耗时 ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-  console.log(`评分：总分 = 季度分(跑赢 ${SC.quarter.beatBase} + 超额×${SC.quarter.perPoint}，${SC.quarter.min}~${SC.quarter.max}) ×${Config.quarters} + 终局分(超额×${SC.final.perPoint}，${SC.final.min}~${SC.final.max}) − 回撤扣分(超过 ${(SC.drawdown.threshold * 100).toFixed(0)}% 的部分 ×${SC.drawdown.perPoint}，不封顶)`);
+  console.log(`评分：总分 = 季度分(跑赢 ${SC.quarter.beatBase} + 超额×${SC.quarter.perPoint}，${SC.quarter.min}~${SC.quarter.max}) ×${Config.quarters} + 终局分(超额×${SC.final.perPoint}，${SC.final.min}~${SC.final.max}) − 回撤扣分(超额回撤超过 ${(SC.drawdown.threshold * 100).toFixed(1)}% 的部分 ×${SC.drawdown.perPoint}，最多扣 ${SC.drawdown.maxPenalty})，总分下限 ${SC.totalMin}`);
+  console.log('超额回撤 = 每周收盘时 (玩家总资产/本金) ÷ 等权基准净值 这条相对净值曲线，从历史最高点回落的最大幅度（账户自身的最大回撤只列出作参考，不参与评分）');
   console.log(`等级线：S ≥ ${G.S}，A ≥ ${G.A}，B ≥ ${G.B}（过关线），C ≥ ${G.C}，其余 D；"提前判死" = 第 10 回合结束时剩余季度与终局全拿上限仍达不到 B 的局所占比例\n`);
-  console.log(pad('', 14) + pad('平均总分', 9) + pad('S', 7) + pad('A', 7) + pad('B', 7) + pad('C', 7) + pad('D', 7) + pad('过关(≥B)', 10) + pad('提前判死', 9) + pad('平均收益率', 11) + pad('平均最大回撤', 13) + '判负率');
+  console.log(pad('', 14) + pad('平均总分', 9) + pad('S', 7) + pad('A', 7) + pad('B', 7) + pad('C', 7) + pad('D', 7) + pad('过关(≥B)', 10) + pad('提前判死', 9) + pad('平均收益率', 11) + pad('平均超额回撤', 14) + pad('账户回撤', 10) + pad('扣分封顶', 10) + pad('总分触底', 10) + '判负率');
   for (const r of [R.research, R.randval, R.random, R.equal, ...singles, ...idles]) {
     const f = (x) => x.toFixed(1) + '%';
     console.log(pad(r.name, 14) + pad(r.meanScore.toFixed(1), 9) + ['S', 'A', 'B', 'C', 'D'].map((g) => pad(f(r.grades[g]), 7)).join('') +
-      pad(f(r.passRate), 10) + pad(f(r.dead10), 9) + pad(r.mean.toFixed(2) + '%', 11) + pad(r.mdd.toFixed(2) + '%', 13) + f(r.busts));
+      pad(f(r.passRate), 10) + pad(f(r.dead10), 9) + pad(r.mean.toFixed(2) + '%', 11) + pad(r.xdd.toFixed(2) + '%', 14) + pad(r.mdd.toFixed(2) + '%', 10) + pad(f(r.capped), 10) + pad(f(r.floored), 10) + f(r.busts));
   }
 
   // ── 验收 ──
