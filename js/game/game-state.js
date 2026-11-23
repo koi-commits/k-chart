@@ -11,13 +11,13 @@
    ============================================ */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
-    module.exports = factory(require('./config.js'), require('./rng.js'), require('./companies.js'),
+    module.exports = factory(require('./config.js'), require('./rng.js'), require('./companies.js'), require('./scoring.js'),
       require('./market.js'), require('./events.js'), require('./research.js'), require('./trading.js'));
   } else {
-    root.GameState = factory(root.GameConfig, root.GameRng, root.GameCompanies,
+    root.GameState = factory(root.GameConfig, root.GameRng, root.GameCompanies, root.GameScoring,
       root.GameMarket, root.GameEvents, root.GameResearch, root.GameTrading);
   }
-})(typeof self !== 'undefined' ? self : this, function (GameConfig, GameRng, GameCompanies, GameMarket, GameEvents, GameResearch, GameTrading) {
+})(typeof self !== 'undefined' ? self : this, function (GameConfig, GameRng, GameCompanies, GameScoring, GameMarket, GameEvents, GameResearch, GameTrading) {
 
   const clone = (o) => JSON.parse(JSON.stringify(o));
 
@@ -95,12 +95,6 @@
   }
 
 
-  /** 胜利条件：打完全部回合（未判负），收益率 ≥ 基准 + winMarginPct，最大回撤 < winMaxDrawdown，且至少 winMinQuarters 个季度跑赢基准 */
-  function isWin(outcome, returnPct, benchmarkPct, maxDrawdown, quartersBeaten) {
-    return outcome === 'completed' && returnPct >= benchmarkPct + GameConfig.winMarginPct &&
-      maxDrawdown < GameConfig.winMaxDrawdown && quartersBeaten >= GameConfig.winMinQuarters;
-  }
-
   // ── 季度考核 ──
   // 时间轴用"已过交易日数 d"：equity[d] = 第 d 个交易日收盘后的总资产（equity[0] = 本金）；
   // 等权基准指数 bench(d) = 各公司 收盘价/基准买入价 的平均（bench(0) = 1）。
@@ -121,6 +115,23 @@
     const playerPct = (state.equity[e].assets / state.equity[s].assets - 1) * 100;
     const benchPct = (benchIndexAt(state, e) / benchIndexAt(state, s) - 1) * 100;
     return { q, done, days: e - s, playerPct, benchPct, diff: playerPct - benchPct, beat: playerPct > benchPct };
+  }
+
+  /**
+   * 评分快照：假设游戏在已过 d 个交易日时结束，得分是多少。
+   * 季度分 = 已完成季度 + 进行中的季度（截至 d 的超额）；终局分 = 截至 d 的全局超额；回撤取截至 d 的最大回撤。
+   */
+  function scoreSnapshot(state, d) {
+    if (d == null) d = state.equity.length - 1;
+    const Q = GameConfig.quarters, qd = quarterDays();
+    const diffs = quarterResults(state, d).map((x) => x.diff);
+    const completed = diffs.length;
+    if (completed < Q && d > completed * qd) diffs.push(quarterAt(state, completed + 1, d).diff);   // 进行中的季度
+    const playerPct = (state.equity[d].assets / GameConfig.initialCash - 1) * 100;
+    const benchPct = (benchIndexAt(state, d) - 1) * 100;
+    const dd = maxDrawdown(state.equity.slice(0, d + 1));
+    const sc = GameScoring.summarize(diffs, playerPct - benchPct, dd);
+    return Object.assign(sc, { completedQuarters: completed, playerPct, benchPct });
   }
 
   /** 已完成的各季度成绩（d 缺省 = 已过的全部交易日） */
@@ -216,6 +227,8 @@
       const benchPct = benchmarkReturnPct(s);
       const quarters = quarterResults(s);
       const quartersBeaten = quarters.filter((x) => x.beat).length;
+      const score = scoreSnapshot(s);
+      if (s.endReason === 'bankrupt') { score.grade = 'D'; score.pass = false; }   // 中途判负：一律 D，不过关
       s.result = {
         outcome: s.endReason,
         turnsPlayed: finishedTurn,
@@ -223,7 +236,7 @@
         returnPct,
         benchmarkReturnPct: benchPct,
         quarters, quartersBeaten,
-        win: isWin(s.endReason, returnPct, benchPct, maxDrawdown(s.equity), quartersBeaten),
+        score, grade: score.grade, pass: score.pass,
         maxDrawdown: maxDrawdown(s.equity),
         truth: ids.map((id) => ({ id, name: s.companies[id].name, V: Math.round(s.companies[id].V * 100) / 100, price: lastClose(s, id) }))
       };
@@ -231,5 +244,5 @@
     return s;
   }
 
-  return { newGame, advanceTurn, totalAssets, maxDrawdown, lastClose, benchmarkReturnPct, isWin, quarterResults, quarterAt, benchIndexAt };
+  return { newGame, advanceTurn, totalAssets, maxDrawdown, lastClose, benchmarkReturnPct, scoreSnapshot, quarterResults, quarterAt, benchIndexAt };
 });

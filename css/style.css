@@ -206,3 +206,32 @@ button.small { padding: 1px 7px; font-size: 11px; }
 .chart { position: relative; }
 .ch-label { position: absolute; left: 8px; top: 3px; z-index: 5; font-size: 11px; color: var(--muted); pointer-events: auto; background: rgba(13,13,13,.55); padding: 0 4px; border-radius: 3px; }
 .ch-label i { display: inline-block; width: 10px; height: 3px; margin: 0 3px 2px 6px; vertical-align: middle; } .ch-label i:first-child { margin-left: 0; }
+
+/* 评分条 */
+.goal { grid-template-columns: 1fr 1fr; }
+.scorebar { grid-column: 1 / -1; background: #1a1a1a; border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px 4px; }
+.sc-main { display: flex; flex-wrap: wrap; gap: 4px 26px; align-items: baseline; font-size: 13px; }
+.sc-total { font-size: 18px; font-family: var(--mono); color: var(--accent); }
+.sc-next { margin-left: auto; }
+.grade-pill { display: inline-block; min-width: 22px; text-align: center; padding: 0 7px; border-radius: 10px; font-size: 13px; color: #111; }
+.g-S { --gc: #ffd54f; } .g-A { --gc: #ce93d8; } .g-B { --gc: #4fc3f7; } .g-C { --gc: #9e9e9e; } .g-D { --gc: #6b6b6b; }
+.grade-pill.g-S, .grade-pill.g-A, .grade-pill.g-B, .grade-pill.g-C, .grade-pill.g-D { background: var(--gc); }
+.grade-txt { color: var(--gc); }
+.g-ruler { position: relative; height: 12px; margin: 6px 0 14px; background: #222; border-radius: 6px; overflow: visible; }
+.g-seg { position: absolute; top: 0; height: 100%; background: color-mix(in srgb, var(--gc) 35%, #1a1a1a); text-align: center; font-size: 9px; line-height: 12px; color: #111; overflow: hidden; }
+.g-seg span { color: var(--gc); font-weight: 700; }
+.g-seg:first-child { border-radius: 6px 0 0 6px; } .g-seg:last-child { border-radius: 0 6px 6px 0; }
+.g-mark { position: absolute; top: -4px; width: 3px; height: 20px; margin-left: -1px; background: #fff; border-radius: 2px; box-shadow: 0 0 4px #fff; }
+.g-lines { position: relative; height: 0; } .g-lines span { position: absolute; top: -14px; transform: translateX(-50%); font-size: 10px; color: var(--muted); font-family: var(--mono); }
+.meter.dd-ok .m-fill.dd { background: var(--down); } .meter.dd-warn .m-fill.dd { background: #ff9800; }
+.meter.dd-warn .dd-val { color: #ff9800; }
+.meter.dd-warn { animation: none; }
+.q-pill b { font-family: var(--mono); }
+.q-pill.done { background: #202020; color: var(--text); border-color: #444; }
+.q-pill.cur { color: var(--accent); border-color: var(--accent); }
+/* 结算：等级 */
+.grade-hero { display: flex; gap: 18px; align-items: center; margin: 4px 0 12px; }
+.gh-grade { width: 74px; height: 74px; line-height: 74px; text-align: center; font-size: 46px; font-weight: 800; border-radius: 12px; color: #111; background: var(--gc); font-family: var(--mono); }
+.gh-total { font-size: 15px; margin-bottom: 2px; } .gh-total b { font-size: 24px; font-family: var(--mono); }
+.qtable th.l, .qtable td.l { text-align: left; } .qtable td.l { font-size: 12px; color: var(--muted); }
+.qtable tr.qt-total td { border-top: 2px solid var(--line); font-size: 14px; } .qtable tr.qt-total td.l { color: var(--text); }

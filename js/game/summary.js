@@ -7,9 +7,9 @@
    绝不返回真实价值 V，也不返回事件是基本面还是情绪。
    ============================================ */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./config.js'), require('./game-state.js'));
-  else root.GameSummary = factory(root.GameConfig, root.GameState);
-})(typeof self !== 'undefined' ? self : this, function (GameConfig, GameState) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./config.js'), require('./game-state.js'), require('./scoring.js'));
+  else root.GameSummary = factory(root.GameConfig, root.GameState, root.GameScoring);
+})(typeof self !== 'undefined' ? self : this, function (GameConfig, GameState, GameScoring) {
 
   const ids = (s) => Object.keys(s.companies);
   const warmDays = () => GameConfig.warmupWeeks * GameConfig.daysPerTurn;
@@ -19,7 +19,7 @@
 
   /**
    * 目标进度。upto = 参与计算的 K 线根数（回放时逐日增加；缺省 = 全部）。
-   * 胜利条件：收益率 ≥ 基准 + winMarginPct 且 最大回撤 < winMaxDrawdown（打完全部回合时判定）。
+   * 评分：总分 = 季度分 + 终局分 − 回撤扣分（见 scoring.js）；这里给出"若现在结束"的得分与预估等级。
    */
   function progress(state, upto) {
     const n = upto == null ? state.candles[ids(state)[0]].length : upto;
@@ -34,33 +34,44 @@
     if (state.benchStart) {
       bench = (ids(state).reduce((a, id) => a + state.candles[id][n - 1].close / state.benchStart[id] - 1, 0) / ids(state).length) * 100;
     }
-    // 季度进度（按已过交易日 d；回放时随 upto 变化）
+    // 评分与季度进度（按已过交易日 d；回放时随 upto 变化）
     const d = Math.max(0, n - warmDays());
     const Q = GameConfig.quarters, qd = GameConfig.quarterLength * GameConfig.daysPerTurn;
     const done = GameState.quarterResults(state, d);
-    const beaten = done.filter((x) => x.beat).length;
+    const sc = GameState.scoreSnapshot(state, d);                          // 假设现在结束的得分
     const qNow = Math.min(Q, Math.floor(d / qd) + 1);                      // 当前（或最后）季度
     const cur = d >= Q * qd ? done[Q - 1] : GameState.quarterAt(state, qNow, d);
     const turnNow = Math.min(GameConfig.totalTurns, Math.floor(d / GameConfig.daysPerTurn) + 1);
     const quarter = {
       q: qNow, turnInQuarter: ((turnNow - 1) % GameConfig.quarterLength) + 1, length: GameConfig.quarterLength,
       diff: cur.diff, playerPct: cur.playerPct, benchPct: cur.benchPct,
-      completed: done.length, beaten, total: Q, need: GameConfig.winMinQuarters,
-      // 还没结束的季度（含当前）全部跑赢也凑不够 → 已无法满足季度条件
-      impossible: beaten + (Q - done.length) < GameConfig.winMinQuarters,
-      pills: Array.from({ length: Q }, (_, i) => (i < done.length ? (done[i].beat ? 'beat' : 'miss') : i === done.length ? 'cur' : 'future'))
+      score: GameScoring.quarterScore(cur.diff).score,                     // 本季度目前得分（进行中则为"若现在结束"）
+      completed: done.length, total: Q,
+      pills: Array.from({ length: Q }, (_, i) => ({
+        state: i < done.length ? 'done' : i === done.length ? 'cur' : 'future',
+        score: sc.quarters[i] ? sc.quarters[i].score : (i === done.length ? GameScoring.quarterScore(cur.diff).score : null)
+      }))
     };
-    const limit = GameConfig.winMaxDrawdown;
-    const warnAt = limit * 0.75;                       // 达到上限的 75%（20% → 15%）开始醒目提示
+    const dd = GameScoring.drawdownPenalty(maxDD);
     return {
-      assets, returnPct: (assets / GameConfig.initialCash - 1) * 100,
-      benchPct: bench, targetPct: bench + GameConfig.winMarginPct,
+      assets, returnPct: (assets / GameConfig.initialCash - 1) * 100, benchPct: bench,
       maxDD, curDD: peak > 0 ? Math.max(0, (peak - last) / peak) : 0,
-      ddLimit: limit, ddWarnAt: warnAt,
-      ddLevel: maxDD >= limit ? 'over' : maxDD >= warnAt ? 'warn' : 'ok',
-      returnReached: (assets / GameConfig.initialCash - 1) * 100 >= bench + GameConfig.winMarginPct,
+      ddThreshold: GameConfig.scoring.drawdown.threshold, ddPenalty: dd.penalty,
+      score: { total: sc.total, grade: sc.grade, pass: sc.pass, next: GameScoring.nextGrade(sc.total),
+        quarterTotal: sc.quarterTotal, final: sc.final.score, finalExcess: sc.final.excess, penalty: sc.drawdown.penalty },
       quarter
     };
+  }
+
+  /**
+   * "提前判死"：截至已过 d 个交易日，剩余季度全部拿上限 + 终局分拿上限，是否仍达不到 B。
+   * 只用于模拟/统计，界面不展示（不提示"已无法过关"）。
+   */
+  function outlook(state, d) {
+    if (d == null) d = state.equity.length - 1;
+    const done = GameState.quarterResults(state, d).map((x) => GameScoring.quarterScore(x.diff).score);
+    const maxDD = GameState.maxDrawdown(state.equity.slice(0, d + 1));
+    return { best: GameScoring.bestPossible(done, maxDD), dead: GameScoring.isDead(done, maxDD) };
   }
 
   /**
@@ -136,5 +147,5 @@
     };
   }
 
-  return { progress, weekSummary, historyOf, newsAtStart, newsSinceResearch, turnStartIdx };
+  return { progress, outlook, weekSummary, historyOf, newsAtStart, newsSinceResearch, turnStartIdx };
 });

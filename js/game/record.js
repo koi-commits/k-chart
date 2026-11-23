@@ -16,7 +16,7 @@
       gameVersion: GameConfig.gameVersion,
       restartCount: restartCount || 0,   // 同一存档期间点击"重新开始"的累计次数（再来一局不计，只沿用）
       seed, startedAt, endedAt: null,
-      rules: { totalTurns: GameConfig.totalTurns, winMarginPct: GameConfig.winMarginPct, winMaxDrawdown: GameConfig.winMaxDrawdown, winMinQuarters: GameConfig.winMinQuarters, quarters: GameConfig.quarters, quarterLength: GameConfig.quarterLength },
+      rules: { totalTurns: GameConfig.totalTurns, quarters: GameConfig.quarters, quarterLength: GameConfig.quarterLength, scoring: GameConfig.scoring },
       turns: [],
       pending: { turn: 1, accMs: 0, research: [] },   // 当前未结束回合的进行中数据（随存档保存，刷新后可继续）
       result: null, truth: null

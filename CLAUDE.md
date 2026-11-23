@@ -26,8 +26,14 @@ npm run build                  # 构建 Windows 便携版（国内网络先设�
 
 - 本金 ¥100,000；共 20 回合，**每回合 = 一周 = 5 个交易日**。
 - 回合结束时总资产 < ¥30,000 判负；第 20 回合结束时结算总资产、收益率、最大回撤（按每日总资产计算）。
-- **胜利条件**（四条同时满足）：打完全部回合（未判负）；最终收益率 ≥ 等权持有基准收益率 + X（`winMarginPct`，当前 18）；最大回撤 < Y（`winMaxDrawdown`，当前 15%，堵住"全仓赌一只股票"）；**4 个季度中至少 Z 个（`winMinQuarters`，当前 3）跑赢基准**（堵住"先暴富、后躺平"）。基准 = 第 1 回合开盘价把本金平均买入 4 家、持有到结束、不计费用。
-- **季度考核**：20 回合 = 4 个季度 × 5 回合。每季度末弹出成绩单：本季度你的收益率 vs 基准本季度收益率，差 > 0 即"跑赢"。季度收益 = 季度末总资产 / 上季度末总资产 − 1（第 1 季度从本金起算）；基准用等权持有指数同样分季度计算。公式在 `game-state.js` 的 `quarterResults`（按"已过交易日数 d"，`equity[d]` 与基准指数对齐）；各季度收益复利后等于总收益（有测试）。
+- **评分与评级（取代原来的三条硬性胜利条件）**：总分 = 4 个季度分 + 终局分 − 回撤扣分；按总分评 S/A/B/C/D，**B 及以上过关**。所有权重、上下限、阈值、等级线都在 `config.scoring`，逻辑在 `js/game/scoring.js`（纯数字函数）。
+  - 超额收益 = 玩家收益率 − 等权基准收益率（百分点）。基准 = 第 1 回合开盘价把本金平均买入 4 家、持有到结束、不计费用。
+  - **季度分**：每季度超额 > 0 得基础分 `beatBase`，超额每个百分点再 ±`perPoint`；单季度限制在 `[min, max]`。
+  - **终局分**：全局超额 × `perPoint`，限制在 `[min, max]`。
+  - **回撤扣分**：最大回撤超过 `threshold` 的部分每个百分点扣 `perPoint` 分，**不设硬性上限**（连续扣分）。
+  - 中途判负（总资产 < ¥30,000）：一律评 D。
+  - 界面**不提示"已无法获胜/过关"**；顶部只显示当前总分（若现在结束）、预估等级、本季度目前得分、距下一等级还差多少分。"提前判死"只是平衡统计指标（`GameSummary.outlook`），不给玩家看。
+- **季度**：20 回合 = 4 个季度 × 5 回合，季度末弹出成绩单（得分构成）。季度收益 = 季度末总资产 / 上季度末总资产 − 1（第 1 季度从本金起算）；基准用等权持有指数同样分季度计算。公式在 `game-state.js` 的 `quarterResults`（按"已过交易日数 d"，`equity[d]` 与基准指数对齐）；各季度收益复利后等于总收益（有测试）。
 - 4 家虚构公司（白酒/新能源/地产/半导体各 1 家，名称与行业固定），玩家看不到真实价值 V、增长率、波动率、负债水平。**这些参数每局由种子在各行业范围内随机生成**（`config.industries`；范围重叠、growth 区间中点相同），所以没有固定的最优股票。
 - 每回合 3 个研究点：对某公司投入 n 点，得到 V 的估计值，误差 σ = 0.18 × 0.55^(n-1)（ln V 的标准差）；估计 4 回合后过期，重新研究覆盖旧估计。
 - 订单在**下周一开盘价**成交（先卖后买）。下单校验的可用资金 = 现金 + 待卖出订单按现价估算的所得（扣费用）。开盘实际资金不足时，买单**按下单顺序**成交，不足的按可买手数**部分成交**，剩余标记为"资金不足未成交"（记入 `failedLog`，回合小结里说明）。A 股费率、平方根市场冲击、T+1（当日买入不可卖）、涨停买不进/跌停卖不出。
@@ -50,6 +56,7 @@ npm run build                  # 构建 Windows 便携版（国内网络先设�
 │   │   ├── market.js      # P = V·exp(s+ε)，每回合生成 5 根日 K
 │   │   ├── research.js    # 研究点 → V 的估计
 │   │   ├── trading.js     # 费率/冲击/T+1/涨跌停，纯函数
+│   │   ├── scoring.js     # 评分与评级：季度分/终局分/回撤扣分/等级/提前判死上界（纯数字，读 config.scoring）
 │   │   ├── game-state.js  # newGame() 与 advanceTurn(state, actions) -> newState
 │   │   ├── record.js      # 试玩记录（行动/耗时/结果）与 replay(record) 重放
 │   │   └── summary.js     # 玩家可见信息的纯函数：progress（目标进度）、weekSummary（回合小结）、historyOf（历史回看）
@@ -70,7 +77,7 @@ npm run build                  # 构建 Windows 便携版（国内网络先设�
 └── icons/ dist/
 ```
 
-脚本加载顺序（index.html）：`lightweight-charts` → `game/config` → `rng` → `companies` → `events` → `market` → `research` → `trading` → `game-state` → `record` → `summary` → `chart` → `ui/tips` → `ui/save` → `ui/view` → `ui/replay` → `ui/review` → `ui/weekly` → `ui/history` → `ui/rules` → `app`。所有模块是 UMD/IIFE，通过全局变量互相引用（`GameConfig`、`GameRng`、`GameState`、`ChartManager`、`App` 等）。
+脚本加载顺序（index.html）：`lightweight-charts` → `game/config` → `rng` → `companies` → `events` → `scoring` → `market` → `research` → `trading` → `game-state` → `record` → `summary` → `chart` → `ui/tips` → `ui/save` → `ui/view` → `ui/replay` → `ui/review` → `ui/weekly` → `ui/history` → `ui/rules` → `app`。所有模块是 UMD/IIFE，通过全局变量互相引用（`GameConfig`、`GameRng`、`GameState`、`ChartManager`、`App` 等）。
 
 ### 遗留文件（仍在仓库，但 index.html 不加载）
 
@@ -98,7 +105,7 @@ npm run build                  # 构建 Windows 便携版（国内网络先设�
 - 耗时由 `app.js` 测量（回合界面停留的累计毫秒，刷新后继续累计），传给 `commitTurn`。存档格式为 `{state, record}`；`state.version` 不符的旧存档直接丢弃。
 
 ### 即时反馈（summary.js / weekly.js / history.js）
-- 顶部目标进度条：收益率 vs（等权基准 + `winMarginPct`），最大回撤 vs `winMaxDrawdown`（达到上限 75% 变橙、超限变红）。全部由 `GameSummary.progress` 计算，阈值读 config。
+- 顶部评分条：当前总分、预估等级、本季度目前得分、距下一等级还差多少分（等级尺 D|C|B|A|S 带当前位置），下面是收益率 vs 基准、最大回撤（超阈值开始扣分）、四个季度的得分。全部由 `GameSummary.progress` 计算，数值读 config。季度成绩单与结算页展示分数构成明细。
 - 回合小结、回合历史只能使用玩家本来能看到的信息：`candles`、`tradeLog`、`researchLog` 的 estimate/sigma、`eventLog` 的 headline。**禁止**读取 `vPath`、`trueV`、事件的 `kind`/`effects`；测试里有"小结不含真实价值"的检查。
 - 估值一律显示为"估值 ¥X + 区间条（约 68% 把握在此区间内）"，区间 = 估值·e^∓σ；不再写"±5%"（σ 是标准差，不是硬边界）。公司列表里"最近一日"（最后一个交易日涨跌）与"近一周"（5 日累计，与小结"本周累计涨跌"同口径）分开标注。
 - 回合小结带"本周回撤"：周内总资产相对历史最高点最深回落（回撤按每日总资产算，周中跌得更深也计入，所以赚钱的一周最大回撤也可能变大）。估值只剩最后 1 回合有效时橙色提醒；结算页的"研究估值"列和**研究当时**的真实价值比较（不是和期末价值比），并标注是否已过期。

@@ -60,20 +60,58 @@ test('行业范围有重叠且 growth 中点相同（不存在必涨行业）', 
   assert.equal(Companies.ids().length, 4);
 });
 
-test('胜利条件：收益率 ≥ 基准 + X、最大回撤 < Y、跑赢季度数 ≥ Z、打完全部回合', () => {
-  const X = Config.winMarginPct, Y = Config.winMaxDrawdown, Z = Config.winMinQuarters;
-  assert.equal(State.isWin('completed', 10 + X, 10, 0.1, Z), true);              // 三条恰好达标
-  assert.equal(State.isWin('completed', 10 + X - 0.01, 10, 0.1, Z), false);      // 收益差一点
-  assert.equal(State.isWin('completed', 50, 10 + 50, 0.1, Z), false);            // 基准更高
-  assert.equal(State.isWin('bankrupt', 500, 0, 0.1, Z), false);                  // 判负永远不算胜
-  assert.equal(State.isWin('completed', 100, 0, Y - 0.001, Z), true);            // 回撤刚好够小
-  assert.equal(State.isWin('completed', 100, 0, Y, Z), false);                   // 回撤 = Y 不算（严格小于）
-  assert.equal(State.isWin('completed', 100, 0, 0.6, Z), false);                 // 收益再高，回撤过大也不算
-  assert.equal(State.isWin('completed', 100, 0, 0.05, Z - 1), false);            // 季度数差一个：收益再高也不算（堵躺平）
-  assert.equal(State.isWin('completed', 100, 0, 0.05, Config.quarters), true);   // 全部跑赢当然可以
+test('评分：季度分（基础分 + 超额 + 上下限）', () => {
+  const S = G('scoring.js'), c = Config.scoring.quarter;
+  const win = S.quarterScore(4);                                       // 跑赢：基础分 + 超额部分
+  assert.equal(win.base, c.beatBase); assert.ok(Math.abs(win.score - (c.beatBase + c.perPoint * 4)) < 1e-12);
+  const lose = S.quarterScore(-4);                                     // 没跑赢：没有基础分，按超额扣
+  assert.equal(lose.base, 0); assert.ok(Math.abs(lose.score - c.perPoint * -4) < 1e-12);
+  assert.equal(S.quarterScore(0).base, 0);                             // 恰好持平不算跑赢
+  assert.equal(S.quarterScore(1e6).score, c.max); assert.equal(S.quarterScore(1e6).clamped, true);   // 上限
+  assert.equal(S.quarterScore(-1e6).score, c.min);                     // 下限
+  // 单调不减
+  let prev = -Infinity; for (let x = -100; x <= 100; x += 0.5) { const s = S.quarterScore(x).score; assert.ok(s >= prev - 1e-12); prev = s; }
+});
+
+test('评分：终局分与回撤扣分（连续扣分，没有硬性上限）', () => {
+  const S = G('scoring.js'), f = Config.scoring.final, d = Config.scoring.drawdown;
+  assert.ok(Math.abs(S.finalScore(10).score - f.perPoint * 10) < 1e-12);
+  assert.equal(S.finalScore(1e6).score, f.max); assert.equal(S.finalScore(-1e6).score, f.min);
+  assert.equal(S.drawdownPenalty(0).penalty, 0);
+  assert.equal(S.drawdownPenalty(d.threshold).penalty, 0);              // 刚到阈值不扣
+  assert.ok(Math.abs(S.drawdownPenalty(d.threshold + 0.05).penalty - 5 * d.perPoint) < 1e-9);   // 超出 5 个百分点
+  assert.ok(S.drawdownPenalty(0.9).penalty > S.drawdownPenalty(0.5).penalty);                  // 越大越扣，不封顶
+  assert.ok(Math.abs(S.drawdownPenalty(0.9).penalty - (90 - d.threshold * 100) * d.perPoint) < 1e-9);
+});
+
+test('评分：总分 = 季度分之和 + 终局分 − 回撤扣分；等级线与过关', () => {
+  const S = G('scoring.js'), g = Config.scoring.grades;
+  const r = S.summarize([3, -2, 6, 1], 12, 0.14);
+  const q = [3, -2, 6, 1].reduce((a, x) => a + S.quarterScore(x).score, 0);
+  const expect = q + S.finalScore(12).score - S.drawdownPenalty(0.14).penalty;
+  assert.ok(Math.abs(r.total - expect) < 1e-9); assert.equal(r.quarters.length, 4);
+  assert.deepEqual([S.gradeOf(g.S), S.gradeOf(g.A), S.gradeOf(g.B), S.gradeOf(g.C), S.gradeOf(g.C - 0.01)], ['S', 'A', 'B', 'C', 'D']);
+  assert.deepEqual([S.gradeOf(g.S - 0.01), S.gradeOf(g.A - 0.01), S.gradeOf(g.B - 0.01)], ['A', 'B', 'C']);
+  assert.deepEqual(['S', 'A', 'B', 'C', 'D'].map((x) => S.isPass(x)), [true, true, true, false, false]);   // B 及以上过关
+  assert.deepEqual(S.nextGrade(g.B + 1), { grade: 'A', need: g.A - g.B - 1 });
+  assert.equal(S.nextGrade(g.S + 5), null);
+  assert.equal(S.nextGrade(-50).grade, 'C');
+});
+
+test('评分：提前判死 = 剩余季度与终局全拿上限仍达不到 B', () => {
+  const S = G('scoring.js'), c = Config.scoring, B = c.grades.B;
+  const best = S.bestPossible([c.quarter.min, c.quarter.min], 0.10);          // 前两季度都拿下限
+  assert.ok(Math.abs(best - (2 * c.quarter.min + 2 * c.quarter.max + c.final.max)) < 1e-9);
+  assert.equal(S.isDead([c.quarter.min, c.quarter.min], 0.10), best < B);
+  assert.equal(S.isDead([c.quarter.max, c.quarter.max], 0), false);           // 前两季度满分，必然还活着或已够
+  // 回撤扣分只增不减：回撤越大，上界越低
+  assert.ok(S.bestPossible([0, 0], 0.5) < S.bestPossible([0, 0], 0.1));
+  // 全部季度完成后上界 = 实际季度分 + 终局上限 − 扣分
+  assert.ok(Math.abs(S.bestPossible([1, 2, 3, 4], 0) - (10 + c.final.max)) < 1e-9);
 });
 
 test('季度考核：4 个季度 × 5 回合 = 20 回合；各季度收益复利后等于总收益（玩家与基准）', () => {
+  const S2 = G('scoring.js');
   assert.equal(Config.quarters * Config.quarterLength, Config.totalTurns);
   const ids = Object.keys(State.newGame(1).companies);
   for (const seed of [3, 11, 29]) {
@@ -86,7 +124,7 @@ test('季度考核：4 个季度 × 5 回合 = 20 回合；各季度收益复利
     assert.ok(Math.abs((bench - 1) * 100 - s.result.benchmarkReturnPct) < 1e-9, '基准季度复利应等于基准总收益');
     for (const x of q) assert.equal(x.beat, x.playerPct > x.benchPct);
     assert.equal(s.result.quartersBeaten, q.filter((x) => x.beat).length);
-    assert.equal(s.result.win, State.isWin(s.result.outcome, s.result.returnPct, s.result.benchmarkReturnPct, s.result.maxDrawdown, s.result.quartersBeaten));
+    assert.equal(s.result.pass, S2.isPass(s.result.grade)); assert.equal(s.result.grade, S2.gradeOf(s.result.score.total));
   }
 });
 
@@ -96,24 +134,41 @@ test('季度考核：空仓玩家只有在基准下跌的季度才算跑赢（�
   for (const x of s.result.quarters) { assert.equal(x.playerPct, 0); assert.equal(x.beat, x.benchPct < 0); }
 });
 
-test('季度进度 progress.quarter：当前季度/回合/已跑赢数/不可能达成', () => {
-  const Summary = G('summary.js');
+test('评分进度 progress：当前季度/回合、本季度得分、累计总分与预估等级（无"已无法获胜"）', () => {
+  const Summary = G('summary.js'), Sc = G('scoring.js');
   let s = State.newGame(13);
-  let q = Summary.progress(s).quarter;
-  assert.deepEqual([q.q, q.turnInQuarter, q.completed, q.beaten, q.need], [1, 1, 0, 0, Config.winMinQuarters]);
+  let p = Summary.progress(s);
+  assert.deepEqual([p.quarter.q, p.quarter.turnInQuarter, p.quarter.completed], [1, 1, 0]);
+  assert.equal(p.score.total, 0); assert.equal(p.score.grade, 'D'); assert.equal(p.score.next.grade, 'C');
   for (let i = 0; i < 6; i++) s = State.advanceTurn(s, {});
-  q = Summary.progress(s).quarter;
-  assert.deepEqual([q.q, q.turnInQuarter, q.completed], [2, 2, 1]);
-  assert.equal(q.pills[0] === 'beat' || q.pills[0] === 'miss', true); assert.equal(q.pills[1], 'cur');
-  // 回放中（upto）：回到第 5 回合结束那一刻，季度刚好完成
+  p = Summary.progress(s);
+  assert.deepEqual([p.quarter.q, p.quarter.turnInQuarter, p.quarter.completed], [2, 2, 1]);
+  assert.equal(p.quarter.pills[0].state, 'done'); assert.equal(p.quarter.pills[1].state, 'cur'); assert.equal(p.quarter.pills[3].state, 'future');
+  // 累计总分 = 假设现在结束的得分，且与 scoreSnapshot 一致；等级与总分一致
+  const snap = State.scoreSnapshot(s);
+  assert.ok(Math.abs(p.score.total - snap.total) < 1e-12); assert.equal(p.score.grade, Sc.gradeOf(snap.total));
+  assert.ok(Math.abs(p.quarter.score - snap.quarters[1].score) < 1e-12, '本季度目前得分应等于快照里第 2 季度得分');
+  if (p.score.next) assert.ok(Math.abs(p.score.next.need - (Config.scoring.grades[p.score.next.grade] - p.score.total)) < 1e-9);
+  assert.ok(!('impossible' in p.quarter) && !('need' in p.quarter), '不再提示已无法获胜');
+  // 回放中（upto）：回到第 5 回合结束那一刻，第 1 季度刚好完成
   const warm = Config.warmupWeeks * Config.daysPerTurn;
-  const atQ1End = Summary.progress(s, warm + 25).quarter;
-  assert.equal(atQ1End.completed, 1);
-  const before = Summary.progress(s, warm + 24).quarter;
-  assert.equal(before.completed, 0); assert.equal(before.q, 1);
-  // 不可能：Z=3，若前两个季度都没跑赢，剩 2 个季度最多再跑赢 2 个
-  const Qn = Config.quarters;
-  assert.equal(0 + (Qn - 2) < Config.winMinQuarters, true);
+  assert.equal(Summary.progress(s, warm + 25).quarter.completed, 1);
+  assert.equal(Summary.progress(s, warm + 24).quarter.completed, 0);
+});
+
+test('终局评分：result.score 与逐项公式一致；中途判负一律 D', () => {
+  const Sc = G('scoring.js');
+  const end = playOut(State.newGame(21));
+  const sc = end.result.score;
+  assert.equal(sc.quarters.length, Config.quarters);
+  const q = sc.quarters.reduce((a, x) => a + x.score, 0);
+  const finalEx = end.result.returnPct - end.result.benchmarkReturnPct;
+  const expect = q + Sc.finalScore(finalEx).score - Sc.drawdownPenalty(end.result.maxDrawdown).penalty;
+  assert.ok(Math.abs(sc.total - expect) < 1e-9);
+  assert.equal(end.result.grade, Sc.gradeOf(sc.total)); assert.equal(end.result.pass, Sc.isPass(end.result.grade));
+  let s = JSON.parse(JSON.stringify(State.newGame(1))); s.cash = Config.bankruptcyLine - 1;
+  s = State.advanceTurn(s, {});
+  assert.equal(s.result.outcome, 'bankrupt'); assert.equal(s.result.grade, 'D'); assert.equal(s.result.pass, false);
 });
 
 test('试玩记录：restartCount 默认 0，create 时可沿用', () => {
@@ -121,7 +176,7 @@ test('试玩记录：restartCount 默认 0，create 时可沿用', () => {
   assert.equal(Record.create(1, 'x').restartCount, 0);
   assert.equal(Record.create(1, 'x', 3).restartCount, 3);
   assert.equal(Record.create(1, 'x').gameVersion, Config.gameVersion);
-  assert.equal(Record.create(1, 'x').rules.winMinQuarters, Config.winMinQuarters);
+  assert.deepEqual(Record.create(1, 'x').rules.scoring, Config.scoring);
 });
 
 test('基准收益率 = 开局开盘价等权买入持有至今', () => {
@@ -132,7 +187,6 @@ test('基准收益率 = 开局开盘价等权买入持有至今', () => {
   assert.ok(Math.abs(State.benchmarkReturnPct(s) - expected) < 1e-9);
   const end = playOut(s);
   assert.equal(end.result.benchmarkReturnPct, State.benchmarkReturnPct(end));
-  assert.equal(end.result.win, State.isWin(end.result.outcome, end.result.returnPct, end.result.benchmarkReturnPct, end.result.maxDrawdown, end.result.quartersBeaten));
 });
 
 test('游戏流程：20 回合结束、结算字段齐全', () => {
@@ -150,7 +204,7 @@ test('判负：总资产低于 30000 时提前结束', () => {
   let s = State.newGame(1);
   s = JSON.parse(JSON.stringify(s)); s.cash = Config.bankruptcyLine - 1;
   s = State.advanceTurn(s, {});
-  assert.equal(s.status, 'ended'); assert.equal(s.result.outcome, 'bankrupt'); assert.equal(s.result.win, false);
+  assert.equal(s.status, 'ended'); assert.equal(s.result.outcome, 'bankrupt'); assert.equal(s.result.pass, false);
 });
 
 test('最大回撤', () => {
@@ -253,26 +307,19 @@ test('复盘所需数据：V 路径与 K 线对齐、事件带文本、研究史
   assert.ok(end.eventLog.length > 0 && end.eventLog.every((e) => typeof e.headline === 'string' && e.effects));
 });
 
-test('summary.progress：收益率/基准/回撤与回撤等级', () => {
+test('summary.progress：收益率/基准/最大回撤', () => {
   const Summary = G('summary.js');
   let s = State.newGame(5);
   let p = Summary.progress(s);
-  assert.equal(p.returnPct, 0); assert.equal(p.benchPct, 0); assert.equal(p.maxDD, 0);
-  assert.equal(p.targetPct, Config.winMarginPct);
+  assert.equal(p.returnPct, 0); assert.equal(p.benchPct, 0); assert.equal(p.maxDD, 0); assert.equal(p.ddPenalty, 0);
   s = State.advanceTurn(s, { orders: [{ id: 'jzjy', side: 'buy', shares: 300 }] });
   p = Summary.progress(s);
   assert.ok(Math.abs(p.benchPct - State.benchmarkReturnPct(s)) < 1e-9);
-  assert.ok(Math.abs(p.targetPct - (p.benchPct + Config.winMarginPct)) < 1e-12);
   assert.ok(Math.abs(p.maxDD - State.maxDrawdown(s.equity)) < 1e-12);
-  // 回放：upto 少 5 根 = 回合开始前的状态
   const base = s.candles.jzjy.length - 5;
   assert.equal(Summary.progress(s, base + 5).assets, p.assets);
   assert.equal(Summary.progress(s, base + 1).maxDD <= p.maxDD, true);
-  // 回撤等级阈值来自 config（上限的 75% 起警告）
-  const fake = JSON.parse(JSON.stringify(s));
-  fake.equity[fake.equity.length - 1].assets = 1; // 直接制造大回撤
-  assert.equal(Summary.progress(fake).ddLevel, 'over');
-  assert.ok(Math.abs(p.ddWarnAt - Config.winMaxDrawdown * 0.75) < 1e-12);
+  assert.equal(p.ddThreshold, Config.scoring.drawdown.threshold);
 });
 
 test('summary.weekSummary：各公司盈亏之和 = 本周总资产变化；不泄露真实价值', () => {
