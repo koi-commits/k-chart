@@ -557,3 +557,32 @@ test('quarterNote：赚钱却跑输基准、亏钱却跑赢基准都要讲清楚
   assert.match(Summary.quarterNote(5, 3), /多赚 2\.00 点/);
   assert.match(Summary.quarterNote(-6, -3), /多亏 3\.00 点/);
 });
+
+test('结算诊断：最大丢分项 key、反事实用本局数据重算、文案来自预设表', () => {
+  const S = G('scoring.js'), Adv = G('advice.js'), c = Config.scoring;
+  // 回撤是最大丢分项
+  const a = S.summarize([6, 7, 8, 9], 10, 0.3);
+  const da = S.diagnose(a);
+  assert.equal(da.key, 'drawdown'); assert.ok(Math.abs(da.loss - a.drawdown.penalty) < 1e-9);
+  const cfd = da.counterfactuals.find((x) => x.kind === 'drawdown');
+  assert.ok(cfd && Math.abs(cfd.total - S.summarize([6, 7, 8, 9], 10, c.drawdown.threshold).total) < 1e-9 && cfd.gain > 0);
+  // 季度分是最大丢分项，反事实指向丢得最多的季度
+  const b = S.summarize([-9, 6, 6, 6], 5, 0);
+  const db = S.diagnose(b);
+  assert.equal(db.key, 'quarter'); assert.equal(db.worstQuarter, 1);
+  const cfq = db.counterfactuals.find((x) => x.kind === 'quarter');
+  assert.equal(cfq.q, 1); assert.ok(Math.abs(cfq.total - S.summarize([0, 6, 6, 6], 5, 0).total) < 1e-9);
+  // 终局分
+  const dc = S.diagnose(S.summarize([6, 6, 6, 6], -40, 0));
+  assert.equal(dc.key, 'final');
+  // 没有明显丢分：key = none，没有反事实
+  const dn = S.diagnose(S.summarize([6, 9, 7, 8], 12, 0.01));
+  assert.equal(dn.key, 'none'); assert.deepEqual(dn.counterfactuals, []);
+  // 最多 2 条反事实，且都是提升 ≥ 0.5 的
+  const dm = S.diagnose(S.summarize([-6, 3, -1, 8], -4, 0.2));
+  assert.ok(dm.counterfactuals.length <= 2 && dm.counterfactuals.every((x) => x.gain >= 0.5));
+  // 建议文案在预设表里，每个 key 都有；逻辑文件里不写文案
+  for (const k of ['quarter', 'final', 'drawdown', 'none']) assert.ok(Adv.ADVICE[k] && Adv.DRAG_NAME[k]);
+  assert.equal(Adv.fill(Adv.COUNTERFACTUAL.quarter, { q: 2, total: '+9.0', grade: 'C' }), '若第 2 季度跑平基准（超额 0 点），总分为 +9.0，等级为 C');
+  assert.ok(!/建议|宁可/.test(require('fs').readFileSync(path.join(__dirname, '..', 'js/game/scoring.js'), 'utf8')));
+});

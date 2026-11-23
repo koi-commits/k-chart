@@ -83,5 +83,35 @@
   }
   const isDead = (doneScores, maxDD) => bestPossible(doneScores, maxDD) < SC().grades[PASS_GRADE];
 
-  return { quarterScore, finalScore, drawdownPenalty, gradeOf, isPass, nextGrade, summarize, bestPossible, isDead, GRADES, PASS_GRADE };
+  /**
+   * 结算诊断：本局最大的丢分项 + 1–2 个反事实对照。sc = summarize() 的结果。
+   * 丢分口径：季度分按"比刚好跑赢基准少拿的分"（beatBase − 实得分，≥0）；终局分按"比跑平少拿的分"；回撤按实际扣分。
+   * 只返回 key 与数字；文案在 advice.js。反事实只保留总分提升 ≥ 0.5 的。
+   */
+  function diagnose(sc) {
+    const c = SC();
+    const qLoss = sc.quarters.map((x) => Math.max(0, c.quarter.beatBase - x.score));
+    const losses = {
+      quarter: qLoss.reduce((a, b) => a + b, 0),
+      final: Math.max(0, -sc.final.score),
+      drawdown: sc.drawdown.penalty
+    };
+    const worstQ = qLoss.indexOf(Math.max(...qLoss));
+    let key = 'none', loss = 0;
+    for (const k of ['quarter', 'final', 'drawdown']) if (losses[k] > loss + 1e-9) { key = k; loss = losses[k]; }
+    if (loss < 1) { key = 'none'; loss = 0; }
+    const diffs = sc.quarters.map((x) => x.excess), fe = sc.final.excess, dd = sc.drawdown.maxDD;
+    const cands = [];
+    if (sc.drawdown.penalty > 0) cands.push({ kind: 'drawdown', dd: Math.min(dd, c.drawdown.threshold), r: summarize(diffs, fe, Math.min(dd, c.drawdown.threshold)) });
+    if (qLoss[worstQ] > 0 && sc.quarters[worstQ].excess < 0) {
+      const d2 = diffs.slice(); d2[worstQ] = 0;
+      cands.push({ kind: 'quarter', q: worstQ + 1, r: summarize(d2, fe, dd) });
+    }
+    if (fe < 0) cands.push({ kind: 'final', r: summarize(diffs, 0, dd) });
+    const counterfactuals = cands.map((x) => ({ kind: x.kind, q: x.q, dd: x.dd, total: x.r.total, grade: x.r.grade, gain: x.r.total - sc.total }))
+      .filter((x) => x.gain >= 0.5).sort((a, b) => b.gain - a.gain).slice(0, 2);
+    return { key, loss, losses, worstQuarter: worstQ + 1, counterfactuals };
+  }
+
+  return { quarterScore, finalScore, diagnose, drawdownPenalty, gradeOf, isPass, nextGrade, summarize, bestPossible, isDead, GRADES, PASS_GRADE };
 });

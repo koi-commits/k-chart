@@ -315,6 +315,21 @@ const GameView = (() => {
   }
   function hideQuarterReport() { $('quarter').hidden = true; }
 
+  /** 结算改进线索：最大丢分项 + 反事实对照 + 对应的预设建议（数值取自本局实际数据，文案取自 advice.js） */
+  function diagnosisHtml(r) {
+    if (r.outcome === 'bankrupt') return '<div class="diag"><b>改进线索</b>：中途判负，评级一律为 D。先保证总资产不跌破 ' + money(GameConfig.bankruptcyLine) + '：分散持有、别满仓单一公司。</div>';
+    const dg = GameScoring.diagnose(r.score), A = GameAdvice, L = dg.losses;
+    const parts = [['quarter', '季度分'], ['final', '终局分'], ['drawdown', '回撤扣分']].map(([k, n]) => `${n} <b class="${L[k] > 0 ? 'pen' : ''}">${L[k] > 0 ? '−' : ''}${L[k].toFixed(1)}</b>`).join('　');
+    const head = dg.key === 'none' ? `本局${A.DRAG_NAME.none}。`
+      : `本局最大的丢分项是 <b class="pen">${A.DRAG_NAME[dg.key]}</b>${dg.key === 'quarter' ? `（其中第 ${dg.worstQuarter} 季度丢得最多）` : ''}，共丢 ${dg.loss.toFixed(1)} 分。`;
+    const cf = dg.counterfactuals.map((x) => '<li>' + A.fill(A.COUNTERFACTUAL[x.kind], {
+      dd: x.dd != null ? (x.dd * 100).toFixed(1) + '%' : '', q: x.q, total: sg1(x.total), grade: x.grade }) + `（+${x.gain.toFixed(1)} 分）</li>`).join('');
+    return `<div class="diag"><div><b>改进线索</b>　${head}${GameTips.tip('丢分 = 比"刚好跑赢基准"少拿的分。季度分：每个季度的基础分减去实得分（跑赢则为 0）；终局分：全局跑输基准时的负分；回撤扣分：实际扣的分。', 'r')}</div>
+      <div class="muted" style="font-size:12px;margin:2px 0">${parts}</div>
+      ${cf ? `<ul class="diag-cf">${cf}</ul>` : ''}
+      <div class="diag-advice">💡 ${A.ADVICE[dg.key]}</div></div>`;
+  }
+
   function renderSettlement(state) {
     const r = state.result, el = $('settlement');
     const bust = r.outcome === 'bankrupt';
@@ -340,6 +355,7 @@ const GameView = (() => {
         <div><div class="gh-total">总分 <b class="${scls(r.score.total)}">${sg1(r.score.total)}</b></div>
           <div class="${r.pass ? 'up' : 'muted'}" style="font-size:15px"><b>${r.pass ? '✔ 过关' : '✘ 未过关'}</b> <span class="muted" style="font-size:12px">（B 及以上过关；等级线 S ${GameConfig.scoring.grades.S} / A ${GameConfig.scoring.grades.A} / B ${GameConfig.scoring.grades.B} / C ${GameConfig.scoring.grades.C}）${bust ? '　中途判负：一律评为 D' : ''}</span></div></div></div>
       ${scoreTableHtml(r.score)}
+      ${diagnosisHtml(r)}
       <div class="muted" style="margin-bottom:6px">真相揭晓：每家公司的真实价值</div>
       <table><tr><th>公司</th><th>真实价值 V</th><th>期末股价</th><th>价格偏离</th><th>你最后一次研究的估值</th></tr>${rows}</table>
       <div class="export-msg muted" id="exportMsg"></div>
