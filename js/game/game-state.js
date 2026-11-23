@@ -28,10 +28,11 @@
       events: GameRng.create(GameRng.deriveState(seed, 2)),
       research: GameRng.create(GameRng.deriveState(seed, 3))
     };
+    const setup = GameRng.create(GameRng.deriveState(seed, 4));   // 公司参数专用流，不干扰价格路径
     const companies = {}, candles = {}, carry = {};
-    for (const def of GameCompanies.getDefs()) {
-      const V = def.v0 * Math.exp(0.08 * rng.market.normal());                 // 真实价值围绕设定值抖动
-      const s = GameMarket.sentimentStd() * rng.market.normal();               // 情绪从平稳分布抽初值
+    for (const def of GameCompanies.generate(setup)) {
+      const V = def.v0 * Math.exp(GameConfig.startValueJitter * setup.normal());   // 真实价值围绕 v0 抖动
+      const s = GameConfig.startSentimentStd * setup.normal();                     // 开局价格与真实价值的偏离
       companies[def.id] = Object.assign({}, def, { V, s });
       delete companies[def.id].v0;
       const p0 = Math.round(V * Math.exp(s) * 100) / 100;
@@ -54,6 +55,7 @@
       research: {}, pointsLeft: GameConfig.research.pointsPerTurn,
       news: [{ cardId: null, headline: '新赛季开始，市场暂无重大消息。' }],
       eventLog: [], lastWeek: null,
+      benchStart: null,
       equity: [{ turn: 0, day: 0, assets: GameConfig.initialCash }],
       result: null,
       rng: { market: rng.market.state(), events: rng.events.state(), research: rng.research.state() }
@@ -81,6 +83,18 @@
       if (peak > 0) mdd = Math.max(mdd, (peak - e.assets) / peak);
     }
     return mdd;
+  }
+
+  /** 等权持有基准收益率（%）：开局把本金平均分给每家公司，第 1 回合开盘价买入，持有到现在（不计费用） */
+  function benchmarkReturnPct(state) {
+    const ids = Object.keys(state.companies);
+    const r = ids.reduce((a, id) => a + lastClose(state, id) / state.benchStart[id] - 1, 0) / ids.length;
+    return r * 100;
+  }
+
+  /** 胜利条件：打完全部回合（未判负），且收益率 ≥ 基准收益率 + winMarginPct */
+  function isWin(outcome, returnPct, benchmarkPct) {
+    return outcome === 'completed' && returnPct >= benchmarkPct + GameConfig.winMarginPct;
   }
 
   function advanceTurn(state, actions) {
@@ -111,6 +125,11 @@
       weekCandles[id] = { prevClose, candles: r.candles };
     }
     s.rng.market = mRng.state(); s.rng.events = eRng.state();
+
+    if (!s.benchStart) {                                // 基准的买入价 = 第 1 回合第 1 日开盘价（与玩家订单同价）
+      s.benchStart = {};
+      for (const id of ids) s.benchStart[id] = weekCandles[id].candles[0].open;
+    }
 
     // 2. 在第 1 日开盘价执行订单（先卖后买）
     const baseDay = s.candles[ids[0]].length;           // 本周第 1 日的全局交易日序号
@@ -151,11 +170,15 @@
     else if (finishedTurn >= GameConfig.totalTurns) s.endReason = 'completed';
     if (s.endReason) {
       s.status = 'ended';
+      const returnPct = (assets / GameConfig.initialCash - 1) * 100;
+      const benchPct = benchmarkReturnPct(s);
       s.result = {
         outcome: s.endReason,
         turnsPlayed: finishedTurn,
         totalAssets: assets,
-        returnPct: (assets / GameConfig.initialCash - 1) * 100,
+        returnPct,
+        benchmarkReturnPct: benchPct,
+        win: isWin(s.endReason, returnPct, benchPct),
         maxDrawdown: maxDrawdown(s.equity),
         truth: ids.map((id) => ({ id, name: s.companies[id].name, V: Math.round(s.companies[id].V * 100) / 100, price: lastClose(s, id) }))
       };
@@ -163,5 +186,5 @@
     return s;
   }
 
-  return { newGame, advanceTurn, totalAssets, maxDrawdown, lastClose };
+  return { newGame, advanceTurn, totalAssets, maxDrawdown, lastClose, benchmarkReturnPct, isWin };
 });
