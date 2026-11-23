@@ -115,6 +115,9 @@ const App = (() => {
     });
   }
 
+  function openHistory() { if (ui.busy || !state) return; touchTime(); GameHistory.open(state); }
+  function closeHistory() { GameHistory.close(); segStart = Date.now(); }   // 查看历史的时间不计入回合耗时
+
   function closeWeekly() {
     GameWeekly.close();
     segStart = Date.now();            // 阅读小结的时间不计入下一回合耗时
@@ -163,6 +166,8 @@ const App = (() => {
       case 'export': exportRecord(); break;
       case 'rules-close': closeRules(); break;
       case 'weekly-close': closeWeekly(); break;
+      case 'hist-go': GameHistory.go(parseInt(d.turn, 10)); break;
+      case 'hist-close': closeHistory(); break;
       case 'review-open': GameReview.render(state); break;
       case 'review-close': GameReview.close(); break;
     }
@@ -175,6 +180,7 @@ const App = (() => {
     document.addEventListener('click', onClick);
     document.getElementById('btnEndTurn').addEventListener('click', endTurn);
     document.getElementById('btnRestart').addEventListener('click', restart);
+    document.getElementById('btnHistory').addEventListener('click', openHistory);
     document.getElementById('btnRules').addEventListener('click', () => openRules(false));
     document.getElementById('btnQuit').addEventListener('click', quitGame);
     window.addEventListener('pagehide', persist);  // 点窗口右上角关闭时也存一次（保存回合耗时）
