@@ -15,7 +15,7 @@
 ```bash
 npm start                      # 运行游戏（electron 直接加载 index.html）
 npm test                       # 单元测试（node:test，tests/ 目录）
-npm run test:e2e               # 端到端测试（Playwright，tests/e2e/ui.e2e.js，约 4 分钟）：三种窗口尺寸打完一局检查弹窗按钮、旧存档提示、自动存档；截图在 test-results/e2e/
+npm run test:e2e               # 端到端测试（Playwright，tests/e2e/ui.e2e.js，约 4 分钟）：三种窗口尺寸打完一局检查弹窗按钮、旧存档提示、自动存档、键盘焦点、回合计时；截图在 test-results/e2e/。首次先 npm install 与 npx playwright install chromium；缺少 Playwright/浏览器时报错退出，不会跳过
 node scripts/simulate.js       # 平衡测试：研究/随机估值/随机交易/等权持有/押单一公司/躺平 共 11 个 bot，各 1000 局（约 2.5 分钟），输出各等级比例、平均总分、提前判死比例
 node scripts/simulate.js 200 7 # 可选参数：局数、起始种子
 node scripts/analyze-records.js <记录文件夹> [--json|--quiet]  # 分析试玩导出的 JSON 记录（每局明细 + 汇总）

@@ -79,7 +79,19 @@ node scripts/analyze-records.js <记录文件夹> --json     # 机器可读（�
 
 ```bash
 npm test                            # 单元测试
-npm run test:e2e                    # 端到端测试（Playwright，约 4 分钟）：1280×800 / 1366×768 / 1280×720 三种窗口打完一局检查所有弹窗按钮，旧存档提示，自动存档；截图在 test-results/e2e/
+npm run test:e2e                    # 端到端测试（Playwright，约 4 分钟）：1280×800 / 1366×768 / 1280×720 三种窗口打完一局检查所有弹窗按钮，旧存档提示，自动存档，键盘焦点，回合计时；截图在 test-results/e2e/
+```
+
+端到端测试第一次运行前要装好 Playwright 和它的浏览器（Playwright 已在 devDependencies 里）：
+
+```bash
+npm install                         # 安装依赖（含 playwright）
+npx playwright install chromium     # 下载 Playwright 用的 Chromium（Linux 上缺系统库时用 npx playwright install --with-deps chromium）
+```
+
+缺少 Playwright 或浏览器时，`npm run test:e2e` 会报错并以非 0 状态码退出（不会跳过后显示通过）。
+
+```bash
 node scripts/simulate.js            # 11 个 bot 各 1000 局，输出各等级比例、平均总分与验收结果
 node scripts/simulate.js 200 7      # 200 局，种子从 7 开始
 ```

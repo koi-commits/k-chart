@@ -5,10 +5,20 @@ const ROOT = path.join(__dirname, '..', '..');
 const URL = 'file://' + path.join(ROOT, 'index.html');
 const SHOTS = path.join(ROOT, 'test-results', 'e2e');
 
-let playwright = null;
-try { playwright = require('playwright'); } catch (e) { /* 没装 Playwright 时测试会跳过 */ }
+const INSTALL = '请先在项目目录运行：npm install（安装 devDependencies 里的 playwright），再运行：npx playwright install chromium（下载浏览器）';
 
-async function launch() { return playwright.chromium.launch(); }
+// 缺少 Playwright 时直接报错（node --test 以非 0 状态码退出），不能跳过后当作通过
+let playwright;
+try { playwright = require('playwright'); } catch (e) {
+  throw new Error('端到端测试需要 Playwright，但找不到 playwright 模块。' + INSTALL + '\n原始错误：' + e.message);
+}
+
+/** 启动浏览器；缺少浏览器时报错（同样以非 0 状态码退出） */
+async function launch() {
+  try { return await playwright.chromium.launch(); } catch (e) {
+    throw new Error('端到端测试无法启动 Chromium（可能还没下载浏览器）。' + INSTALL + '\n原始错误：' + e.message.split('\n')[0]);
+  }
+}
 
 /** 新开一个页面（独立 localStorage）。init(page) 可在页面加载前注入脚本 */
 async function openPage(browser, viewport, beforeLoad) {
@@ -51,4 +61,4 @@ async function shot(page, name) {
 
 const visible = (page, sel) => page.$eval(sel, (el) => !el.hidden).catch(() => false);
 
-module.exports = { playwright, launch, openPage, clickable, scrollCard, shot, visible, ROOT, URL, SHOTS };
+module.exports = { playwright, launch, INSTALL, openPage, clickable, scrollCard, shot, visible, ROOT, URL, SHOTS };

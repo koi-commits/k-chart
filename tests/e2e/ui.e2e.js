@@ -13,9 +13,9 @@ const Config = G('config.js'), State = G('game-state.js'), Record = G('record.js
 const SAVE_KEY = 'kline-game-v0-save', RULES_KEY = 'kline-game-v0-rules-seen';
 
 const SIZES = [{ width: 1280, height: 800 }, { width: 1366, height: 768 }, { width: 1280, height: 720 }];
-const skip = H.playwright ? false : '没有安装 Playwright，跳过端到端测试';
+// 端到端测试从不跳过：缺少 Playwright 或浏览器时，helpers.js / before 钩子直接报错，node --test 以非 0 状态码退出
 let browser;
-test.before(async () => { if (!skip) browser = await H.launch(); });
+test.before(async () => { browser = await H.launch(); });
 test.after(async () => { if (browser) await browser.close(); });
 
 /** 页面加载前写入存档（只在第一次加载时写，之后刷新用页面自己的存档） */
@@ -109,7 +109,7 @@ function assertReplayable(rec) {
 }
 
 for (const vp of SIZES) {
-  test(`界面：${vp.width}×${vp.height} 打完一局，所有弹窗按钮可见可点`, { skip, timeout: 240000 }, async () => {
+  test(`界面：${vp.width}×${vp.height} 打完一局，所有弹窗按钮可见可点`, { timeout: 240000 }, async () => {
     const tag = `${vp.width}x${vp.height}`;
     const { ctx, page, errors } = await H.openPage(browser, vp);
     await playToEnd(page, { check: true, tag, hooks: { onTurn: async (t) => {
@@ -126,7 +126,7 @@ for (const vp of SIZES) {
   });
 }
 
-test('界面：仓库自带的 AI 试玩记录重放成当前版本存档后，三种尺寸下结算页按钮都可见可点', { skip, timeout: 120000 }, async () => {
+test('界面：仓库自带的 AI 试玩记录重放成当前版本存档后，三种尺寸下结算页按钮都可见可点', { timeout: 120000 }, async () => {
   const src = JSON.parse(fs.readFileSync(path.join(H.ROOT, 'docs', 'ai-试玩记录-v0.3', 'records', 'kline-game-ai-g2.json'), 'utf8'));
   let s = State.newGame(src.seed);
   const rec = Record.create(src.seed, src.startedAt, 0);
@@ -166,7 +166,7 @@ const OLD = [
   ['当前版本但缺少 result.score', (d) => { delete d.state.result.score; }, /缺少关键数据（state\.result\.score），无法在当前版本继续/, Config.gameVersion]
 ];
 for (const [name, mutate, msg, ver] of OLD) {
-  test(`旧存档：${name} → 提示无法继续，可导出原记录、可开始新局，不报错`, { skip, timeout: 60000 }, async () => {
+  test(`旧存档：${name} → 提示无法继续，可导出原记录、可开始新局，不报错`, { timeout: 60000 }, async () => {
     const save = finishedSave(31, mutate);
     const { ctx, page, errors } = await H.openPage(browser, SIZES[0], injectSave(save));
     assert.ok(await H.visible(page, '#oldSave'), '应显示旧存档提示');
@@ -191,7 +191,7 @@ for (const [name, mutate, msg, ver] of OLD) {
 }
 
 // ── 自动存档 ──
-test('自动存档：下单后刷新，待执行订单与研究都还在，结束回合按这些订单成交', { skip, timeout: 60000 }, async () => {
+test('自动存档：下单后刷新，待执行订单与研究都还在，结束回合按这些订单成交', { timeout: 60000 }, async () => {
   const { ctx, page, errors } = await H.openPage(browser, SIZES[0]);
   await page.click('[data-action=rules-close]');
   await page.click('[data-action=research]');
@@ -217,7 +217,7 @@ test('自动存档：下单后刷新，待执行订单与研究都还在，结�
   await ctx.close();
 });
 
-test('自动存档：回放途中退出后重进，直接显示回合小结，不重播、不重复结算；导出记录可重放出相同期末资产', { skip, timeout: 180000 }, async () => {
+test('自动存档：回放途中退出后重进，直接显示回合小结，不重播、不重复结算；导出记录可重放出相同期末资产', { timeout: 180000 }, async () => {
   const { ctx, page, errors } = await H.openPage(browser, SIZES[0]);
   await page.click('[data-action=rules-close]');
   await buy(page, 2, 3);
@@ -286,7 +286,7 @@ async function keyboardStaysInside(page, sel, label) {
   assert.equal(await page.$eval('#app', (el) => el.inert), true);
 }
 
-test('键盘：规则页、回合小结、季度成绩单打开时，Tab/Shift+Tab/Enter/Space 都碰不到背景，季度成绩单不会被跳过', { skip, timeout: 120000 }, async () => {
+test('键盘：规则页、回合小结、季度成绩单打开时，Tab/Shift+Tab/Enter/Space 都碰不到背景，季度成绩单不会被跳过', { timeout: 120000 }, async () => {
   const { ctx, page, errors } = await H.openPage(browser, SIZES[0]);
   assert.ok(await H.visible(page, '#rules'));                  // 首次启动自动弹出规则页
   await keyboardStaysInside(page, '#rules', '规则页');
@@ -322,7 +322,7 @@ test('键盘：规则页、回合小结、季度成绩单打开时，Tab/Shift+T
 });
 
 // ── 回合计时：弹窗打开期间暂停 ──
-test('回合计时：小结打开期间等待后刷新，下一回合耗时从 0 开始；弹窗期间暂停，关掉后才计时', { skip, timeout: 60000 }, async () => {
+test('回合计时：小结打开期间等待后刷新，下一回合耗时从 0 开始；弹窗期间暂停，关掉后才计时', { timeout: 60000 }, async () => {
   const { ctx, page, errors } = await H.openPage(browser, SIZES[0]);
   const acc = () => page.evaluate(() => App.getRecord().pending.accMs);
   const reload = async () => { await page.reload(); await page.waitForFunction(() => typeof App !== 'undefined' && App.getState()); };
