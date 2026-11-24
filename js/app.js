@@ -208,5 +208,5 @@ const App = (() => {
   }
 
   window.addEventListener('DOMContentLoaded', init);
-  return { newGame, endTurn };
+  return { newGame, endTurn, getState: () => state, getRecord: () => record };
 })();

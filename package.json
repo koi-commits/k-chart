@@ -9,7 +9,8 @@
     "test": "node --test",
     "simulate": "node scripts/simulate.js",
     "analyze": "node scripts/analyze-records.js",
-    "build": "electron-builder --win portable"
+    "build": "electron-builder --win portable",
+    "test:e2e": "node --test --test-concurrency=1 tests/e2e/ui.e2e.js"
   },
   "build": {
     "appId": "com.koi.kline-simulator",
