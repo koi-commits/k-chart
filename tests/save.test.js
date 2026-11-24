@@ -23,13 +23,14 @@ function finishedSave(seed) {
 }
 const clone = (x) => JSON.parse(JSON.stringify(x));
 
-test('存档校验：当前版本的完整存档可以加载（含进行中的对局）', () => {
+test('存档校验：当前版本的完整存档可以加载（含进行中的对局与待执行订单）', () => {
   const d = finishedSave(3);
   const ok = Save.check(JSON.stringify(d), CUR);
   assert.equal(ok.ok, true); assert.equal(ok.state.status, 'ended');
   const s = State.newGame(4), rec = Record.create(4, 'x', 0);
-  const p = Save.check(JSON.stringify({ state: s, record: rec }), CUR);
-  assert.equal(p.ok, true); assert.equal(p.state.turn, 1);
+  rec.pending.orders.push({ id: Object.keys(s.companies)[0], side: 'buy', lots: 2 });
+  const p = Save.check(JSON.stringify({ state: s, record: rec, view: { weeklyTurn: 1 } }), CUR);
+  assert.equal(p.ok, true); assert.deepEqual(p.record.pending.orders, rec.pending.orders); assert.deepEqual(p.view, { weeklyTurn: 1 });
   assert.equal(Save.check(null, CUR), null); assert.equal(Save.check('', CUR), null);
 });
 
@@ -71,6 +72,7 @@ test('存档校验：当前版本但缺少关键字段 → 无法加载（不崩
     [(d) => { delete d.state.candles; }, 'state.candles'],
     [(d) => { d.state.equity = []; }, 'state.equity'],
     [(d) => { delete d.record.turns; }, 'record.turns'],
+    [(d) => { d.record.pending.orders = 'x'; }, 'record.pending.orders'],
     [(d) => { d.record.seed = 1; }, 'record.seed'],
     [(d) => { d.state.version = 1; }, 'state.version']
   ];

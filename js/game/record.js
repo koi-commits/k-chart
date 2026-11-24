@@ -18,7 +18,7 @@
       seed, startedAt, endedAt: null,
       rules: { totalTurns: GameConfig.totalTurns, quarters: GameConfig.quarters, quarterLength: GameConfig.quarterLength, scoring: GameConfig.scoring },
       turns: [],
-      pending: { turn: 1, accMs: 0, research: [] },   // 当前未结束回合的进行中数据（随存档保存，刷新后可继续）
+      pending: { turn: 1, accMs: 0, research: [], orders: [] },   // 当前未结束回合的进行中数据：研究、待执行订单（随存档保存，刷新后可继续）
       result: null, truth: null
     };
   }
@@ -35,7 +35,7 @@
       trades: lw.trades, failed: lw.failed.map((f) => ({ id: f.order.id, side: f.order.side, shares: f.order.shares, error: f.error })),
       assetsAfter: args.state.equity[args.state.equity.length - 1].assets
     });
-    rec.pending = { turn: args.state.turn, accMs: 0, research: [] };
+    rec.pending = { turn: args.state.turn, accMs: 0, research: [], orders: [] };
     if (args.state.status === 'ended') finalize(rec, args.state, args.endedAt);
     return rec;
   }

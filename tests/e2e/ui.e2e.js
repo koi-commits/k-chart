@@ -2,6 +2,7 @@
 // 1) 三种窗口尺寸下各打完一局：所有弹窗的按钮都看得见、点得到（截图在 test-results/e2e/）
 // 2) 仓库自带的 AI 试玩记录按当前规则重放成存档后，结算页按钮可见可点
 // 3) 旧版本 / 缺字段存档：不进入游戏、不报错，可原样导出原记录、可开始新局
+// 4) 自动存档：下单后刷新订单不丢；回放途中退出重进直接显示回合小结、不重复结算；导出记录可重放出相同期末资产
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -188,3 +189,71 @@ for (const [name, mutate, msg, ver] of OLD) {
     await ctx.close();
   });
 }
+
+// ── 自动存档 ──
+test('自动存档：下单后刷新，待执行订单与研究都还在，结束回合按这些订单成交', { skip, timeout: 60000 }, async () => {
+  const { ctx, page, errors } = await H.openPage(browser, SIZES[0]);
+  await page.click('[data-action=rules-close]');
+  await page.click('[data-action=research]');
+  await buy(page, 1, 2); await buy(page, 3, 1);
+  await page.click('[data-action=cancel] >> nth=1');          // 撤销也要存档
+  await buy(page, 0, 4);
+  const before = await page.evaluate(() => ({ p: App.getRecord().pending, s: App.getState().seed }));
+  assert.equal(before.p.orders.length, 2);
+  await page.reload();
+  await page.waitForFunction(() => typeof App !== 'undefined' && App.getState());
+  const after = await page.evaluate(() => ({ p: App.getRecord().pending, s: App.getState().seed, html: document.getElementById('pendingPanel').textContent }));
+  assert.equal(after.s, before.s);
+  assert.deepEqual(after.p.orders, before.p.orders, '刷新后订单队列不丢');
+  assert.deepEqual(after.p.research, before.p.research, '刷新后研究还在');
+  assert.match(after.html, /2 手/); assert.match(after.html, /4 手/);
+  await page.click('#btnEndTurn');
+  await waitAny(page, ['#weekly']);
+  const t1 = await page.evaluate(() => App.getRecord().turns[0]);
+  assert.deepEqual(t1.orders, before.p.orders.map((o) => ({ id: o.id, side: o.side, shares: o.lots * Config.lotSize })).map((o) => o),
+    '成交的是刷新前下的订单');
+  assert.equal(await page.evaluate(() => App.getRecord().pending.orders.length), 0, '结算后订单队列清空');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('自动存档：回放途中退出后重进，直接显示回合小结，不重播、不重复结算；导出记录可重放出相同期末资产', { skip, timeout: 180000 }, async () => {
+  const { ctx, page, errors } = await H.openPage(browser, SIZES[0]);
+  await page.click('[data-action=rules-close]');
+  await buy(page, 2, 3);
+  await page.click('#btnEndTurn');
+  await page.waitForTimeout(400);                               // 回放约 2 秒，这里在回放途中刷新
+  assert.equal(await H.visible(page, '#weekly'), false, '此时仍在回放');
+  await page.reload();
+  await page.waitForFunction(() => typeof App !== 'undefined' && App.getState());
+  assert.ok(await H.visible(page, '#weekly'), '重进后直接显示回合小结');
+  assert.match(await page.textContent('#weekly h2'), /第 1 回合小结/);
+  let st = await page.evaluate(() => ({ turn: App.getState().turn, n: App.getRecord().turns.length, eq: App.getState().equity.length, orders: App.getRecord().turns[0].orders }));
+  assert.equal(st.turn, 2); assert.equal(st.n, 1); assert.equal(st.eq, Config.daysPerTurn + 1);
+  assert.equal(st.orders.length, 1, '已提交的订单已成交');
+  await page.click('#btnWeeklyClose');
+  await page.reload();                                          // 看完小结后再刷新：不再弹小结，也不会再结算一次
+  await page.waitForFunction(() => typeof App !== 'undefined' && App.getState());
+  assert.equal(await H.visible(page, '#weekly'), false);
+  st = await page.evaluate(() => ({ turn: App.getState().turn, n: App.getRecord().turns.length, eq: App.getState().equity.length }));
+  assert.equal(st.turn, 2); assert.equal(st.n, 1); assert.equal(st.eq, Config.daysPerTurn + 1);
+  // 第 5 回合（季度末）回放途中退出：重进先看小结，再看季度成绩单
+  await playToEnd(page, { hooks: { onTurn: async (t) => {
+    if (t === 5) {
+      await page.click('#btnEndTurn'); await page.waitForTimeout(400); await page.reload();
+      await page.waitForFunction(() => typeof App !== 'undefined' && App.getState());
+      assert.ok(await H.visible(page, '#weekly'));
+      await page.click('#btnWeeklyClose');
+      assert.ok(await H.visible(page, '#quarter'), '季度末：小结之后是季度成绩单');
+      await page.reload();                                      // 成绩单没看完就退出：重进还显示成绩单
+      await page.waitForFunction(() => typeof App !== 'undefined' && App.getState());
+      assert.ok(await H.visible(page, '#quarter'));
+      await page.click('#btnQuarterClose');
+    }
+  } } });
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('[data-action=export]')]);
+  const rec = JSON.parse(fs.readFileSync(await dl.path(), 'utf8'));
+  assertReplayable(rec);
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});

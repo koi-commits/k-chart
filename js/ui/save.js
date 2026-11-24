@@ -1,12 +1,14 @@
 /* ui/save.js — localStorage 自动存档（单槽，覆盖写；不提供手动读档）
-   存 { state, record }：record 是试玩记录（见 game/record.js）
+   存 { state, record, view }：
+   · record 是试玩记录（见 game/record.js）；record.pending.orders 是本回合待执行的订单队列
+   · view 是"还没看完的结算弹窗"（{weeklyTurn} 或 {quarter}），用于回放/弹窗途中退出后重进
    不做数据迁移：版本与当前不一致、或缺少关键字段的存档一律不进入游戏（见 check）。 */
 const GameSave = (() => {
   const KEY = 'kline-game-v0-save';
   const VERSION = 2; // state.version（存档结构版本）
 
-  function save(state, record) {
-    try { localStorage.setItem(KEY, JSON.stringify({ state, record })); } catch (e) { console.warn('存档失败', e); }
+  function save(state, record, view) {
+    try { localStorage.setItem(KEY, JSON.stringify({ state, record, view: view || null })); } catch (e) { console.warn('存档失败', e); }
   }
 
   const isNum = (x) => typeof x === 'number' && isFinite(x);
@@ -23,6 +25,7 @@ const GameSave = (() => {
     if (!isObj(r)) return 'record';
     if (!Array.isArray(r.turns)) return 'record.turns';
     if (!isObj(r.pending) || !Array.isArray(r.pending.research)) return 'record.pending';
+    if (r.pending.orders != null && !Array.isArray(r.pending.orders)) return 'record.pending.orders';
     if (r.seed !== s.seed) return 'record.seed';
     if (s.status === 'ended') {
       const res = s.result;
@@ -37,7 +40,7 @@ const GameSave = (() => {
   /**
    * 校验存档（纯函数）。raw = localStorage 里的原始字符串，current = 当前 gameVersion。
    * → null（没有存档）
-   * → { ok: true, state, record }
+   * → { ok: true, state, record, view }
    * → { ok: false, reason: 'version' | 'broken' | 'corrupt', version, record, data, raw, field }
    */
   function check(raw, current) {
@@ -50,7 +53,7 @@ const GameSave = (() => {
     if (version !== current) return { ok: false, reason: 'version', version, record, data: d, raw };
     const field = missingField(d);
     if (field) return { ok: false, reason: 'broken', version, record, data: d, raw, field };
-    return { ok: true, state: d.state, record: d.record };
+    return { ok: true, state: d.state, record: d.record, view: isObj(d.view) ? d.view : null };
   }
 
   /** 读取存档并校验（见 check） */

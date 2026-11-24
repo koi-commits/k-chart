@@ -3,7 +3,9 @@ const App = (() => {
   let state = null;
   let record = null;      // 试玩记录（见 game/record.js），随存档保存
   let segStart = Date.now(); // 本回合当前停留片段的起点（毫秒）
+  let view = null;          // 还没看完的结算弹窗：{weeklyTurn} 回合小结 / {quarter} 季度成绩单；随存档保存
   let badSave = null;       // 无法加载的旧存档（见 GameSave.check）
+  // ui.pending 与 record.pending.orders 是同一个数组：订单队列每次变化都随存档写入
   const ui = { selected: null, pending: [], lots: 1, researchN: 1, busy: false };
 
   function render(upto) {
@@ -18,7 +20,18 @@ const App = (() => {
     segStart = now;
   }
 
-  function persist() { if (!state || !record) return; touchTime(); GameSave.save(state, record); }
+  /** 存档。回放途中（ui.busy）不计入回合耗时：回合已经结算，回放只是展示 */
+  function persist() {
+    if (!state || !record) return;
+    if (ui.busy) segStart = Date.now(); else touchTime();
+    GameSave.save(state, record, view);
+  }
+
+  /** 把 ui.pending 挂到 record.pending.orders 上（同一个数组），之后增删订单直接存档 */
+  function bindPending() {
+    if (!Array.isArray(record.pending.orders)) record.pending.orders = [];
+    ui.pending = record.pending.orders;
+  }
 
   /** 打开/关闭规则页；阅读规则的时间不计入回合耗时 */
   function openRules(first) { if (record) touchTime(); GameRules.open(first); }
@@ -35,10 +48,10 @@ const App = (() => {
   function newGame(restarts) {
     state = GameState.newGame(crypto.getRandomValues(new Uint32Array(1))[0]); // 种子在 UI 层生成
     record = GameRecord.create(state.seed, new Date().toISOString(), restarts || 0);
-    segStart = Date.now(); badSave = null;
-    ui.pending = []; ui.lots = 1; ui.researchN = 1;
+    segStart = Date.now(); view = null; badSave = null;
+    bindPending(); ui.lots = 1; ui.researchN = 1;
     ui.selected = Object.keys(state.companies)[0];
-    GameSave.save(state, record);
+    GameSave.save(state, record, view);
     hideOldSave();
     GameView.hideSettlement();
     GameReview.close();
@@ -79,6 +92,7 @@ const App = (() => {
     const max = side === 'buy' ? L.buyLots : L.sellLots;
     if (lots > max) { toast(side === 'buy' ? `资金不足，最多还能买 ${max} 手` : `可卖不足，最多还能卖 ${max} 手`); return; }
     ui.pending.push({ id: ui.selected, side, lots });
+    persist();   // 订单队列变化即存档：刷新后订单不丢
     render();
   }
 
@@ -89,32 +103,42 @@ const App = (() => {
     render();
   }
 
-  function cancel(i) { ui.pending.splice(i, 1); render(); }
+  function cancel(i) { ui.pending.splice(i, 1); persist(); render(); }
 
+  /**
+   * 结束回合：先结算（advanceTurn）并把新状态 + 试玩记录一次性存档，再开始回放。
+   * 回放只是展示；回放途中退出，重进时直接显示回合小结（view.weeklyTurn），不会重播、也不会重复结算。
+   */
   function endTurn() {
     if (!state || ui.busy || state.status !== 'playing') return;
     readLots();
-    ui.busy = true;
     const orders = ui.pending.map((o) => ({ id: o.id, side: o.side, shares: o.lots * GameConfig.lotSize }));
     touchTime();
     const durationMs = record.pending.accMs;
     const turn = state.turn, newsShown = state.news.map((n) => n.headline);
     const next = GameState.advanceTurn(state, { orders });
-    ui.pending = [];
+    GameRecord.commitTurn(record, { turn, orders, durationMs, newsShown, state: next, endedAt: new Date().toISOString() });
+    state = next; bindPending(); ui.researchN = 1;
+    view = { weeklyTurn: turn };
+    GameSave.save(state, record, view);          // 结算结果先落盘
+    ui.busy = true; segStart = Date.now();
     document.getElementById('btnEndTurn').disabled = true;
     GameReplay.play(next, ui, (upto) => {
       GameView.renderTopbar(next, upto);
       GameView.renderCompanies(next, ui, upto);
       GameView.chartTitle(next, ui, upto);
     }, () => {
-      GameRecord.commitTurn(record, { turn, orders, durationMs, newsShown, state: next, endedAt: new Date().toISOString() });
-      state = next; ui.busy = false; ui.researchN = 1;
-      segStart = Date.now();
-      GameSave.save(state, record);
+      ui.busy = false; segStart = Date.now();
       render();
-      ui.weeklyTurn = turn;
-      GameWeekly.open(state, turn);   // 回合小结 →（季度末）季度成绩单 →（游戏结束）结算
+      showView();
     });
+  }
+
+  /** 显示还没看完的结算弹窗（回合小结 / 季度成绩单），或已结束对局的结算页 */
+  function showView() {
+    if (view && view.weeklyTurn) { ui.weeklyTurn = view.weeklyTurn; GameWeekly.open(state, view.weeklyTurn); return; }
+    if (view && view.quarter) { GameView.renderQuarterReport(state, view.quarter); return; }
+    if (state.status === 'ended') GameView.renderSettlement(state);
   }
 
   function openHistory() { if (ui.busy || !state) return; touchTime(); GameHistory.open(state); }
@@ -123,15 +147,18 @@ const App = (() => {
   function closeWeekly() {
     GameWeekly.close();
     segStart = Date.now();            // 阅读小结的时间不计入下一回合耗时
-    const L = GameConfig.quarterLength;
-    if (ui.weeklyTurn % L === 0 && GameState.quarterResults(state).length >= ui.weeklyTurn / L) GameView.renderQuarterReport(state, ui.weeklyTurn / L);
-    else if (state.status === 'ended') GameView.renderSettlement(state);
+    const L = GameConfig.quarterLength, t = ui.weeklyTurn;
+    view = t % L === 0 && GameState.quarterResults(state).length >= t / L ? { quarter: t / L } : null;
+    GameSave.save(state, record, view);
+    showView();
   }
 
   function closeQuarter() {
     GameView.hideQuarterReport();
     segStart = Date.now();
-    if (state.status === 'ended') GameView.renderSettlement(state);
+    view = null;
+    GameSave.save(state, record, view);
+    showView();
   }
 
   /** 导出本局记录为 JSON 文件（种子、每回合行动与耗时、最终结果） */
@@ -238,13 +265,14 @@ const App = (() => {
     if (saved && !saved.ok) { showOldSave(saved); return; }   // 旧版本/缺字段：不进入游戏，不报错
     if (saved) {
       try {
-        state = saved.state; record = saved.record; segStart = Date.now();
+        state = saved.state; record = saved.record; view = saved.view; segStart = Date.now();
+        bindPending();
         ui.selected = Object.keys(state.companies)[0];
         render();
-        if (state.status === 'ended') GameView.renderSettlement(state);
+        showView();                    // 回放途中退出：直接显示回合小结，不重播、不重复结算
       } catch (e) {
         console.warn('存档无法显示', e);
-        state = null; record = null;
+        state = null; record = null; view = null;
         showOldSave({ ok: false, reason: 'broken', field: String(e && e.message || e), version: saved.record && saved.record.gameVersion, record: saved.record, raw: null });
         return;
       }
