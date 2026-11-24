@@ -38,21 +38,24 @@ const GameSave = (() => {
   }
 
   /**
-   * 校验存档（纯函数）。raw = localStorage 里的原始字符串，current = 当前 gameVersion。
+   * 校验存档（纯函数）。raw = localStorage 里的原始字符串，current = 当前规则版本（config.rulesVersion）。
+   * 兼容性按规则版本判断：规则版本相同、程序版本不同的存档可以继续玩。
+   * versionsOf = GameRecord.versionsOf（记录 → {build, rules, label}）。
    * → null（没有存档）
    * → { ok: true, state, record, view }
    * → { ok: false, reason: 'version' | 'broken' | 'corrupt', version, record, data, raw, field }
    */
-  function check(raw, current) {
+  function check(raw, current, versionsOf) {
     if (raw == null || raw === '') return null;
     let d;
     try { d = JSON.parse(raw); } catch (e) { return { ok: false, reason: 'corrupt', version: null, record: null, data: null, raw }; }
     if (!isObj(d)) return { ok: false, reason: 'corrupt', version: null, record: null, data: null, raw };
     const record = isObj(d.record) ? d.record : null;
-    const version = record && typeof record.gameVersion === 'string' ? record.gameVersion : null;
-    if (version !== current) return { ok: false, reason: 'version', version, record, data: d, raw };
+    const v = record ? versionsOf(record) : { build: null, rules: null, label: '(未标注)' };
+    const version = v.build ? v.label : null, rules = v.rules;
+    if (rules !== current) return { ok: false, reason: 'version', version, rules, record, data: d, raw };
     const field = missingField(d);
-    if (field) return { ok: false, reason: 'broken', version, record, data: d, raw, field };
+    if (field) return { ok: false, reason: 'broken', version, rules, record, data: d, raw, field };
     return { ok: true, state: d.state, record: d.record, view: isObj(d.view) ? d.view : null };
   }
 
@@ -60,17 +63,17 @@ const GameSave = (() => {
   function load() {
     let raw = null;
     try { raw = localStorage.getItem(KEY); } catch (e) { return null; }
-    return check(raw, typeof GameConfig !== 'undefined' ? GameConfig.gameVersion : null);
+    return check(raw, GameConfig.rulesVersion, GameRecord.versionsOf);
   }
 
   /** 无法加载时给玩家看的说明 */
   function message(bad) {
-    if (bad.reason === 'version') return `此存档来自旧版本 ${bad.version || '（未标注版本）'}，无法在当前版本继续`;
+    if (bad.reason === 'version') return `此存档来自旧版本 ${bad.version || '（未标注版本）'}${bad.rules ? `（规则版本 ${bad.rules}）` : ''}，无法在当前版本继续`;
     if (bad.reason === 'broken') return `此存档缺少关键数据（${bad.field}），无法在当前版本继续`;
     return '此存档已损坏，无法在当前版本继续';
   }
 
-  /** "导出原记录"的内容：原样导出存档里的记录（不改 gameVersion、不重新计分）；没有记录时导出整个存档原文 */
+  /** "导出原记录"的内容：原样导出存档里的记录（不改版本号、不重新计分）；没有记录时导出整个存档原文 */
   function originalExport(bad) {
     if (bad.record) return { text: JSON.stringify(bad.record, null, 2), seed: bad.record.seed, version: bad.version };
     return { text: bad.raw, seed: null, version: bad.version };

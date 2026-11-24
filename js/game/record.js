@@ -9,11 +9,26 @@
   else root.GameRecord = factory(root.GameConfig, root.GameState);
 })(typeof self !== 'undefined' ? self : this, function (GameConfig, GameState) {
 
+  /**
+   * 记录的版本号 → { build, rules, label }。
+   * 0.4.2 起记录里直接有 buildVersion / rulesVersion；更早的记录只有 gameVersion（如 'v0.4.1-playtest'）。
+   * 0.4.2 之前每次改规则都升次版本号（v0.1 → v0.2 → v0.3 → v0.4），补丁版本（v0.4.1）只修 bug，
+   * 所以旧记录的规则版本 = gameVersion 的"主.次"（v0.4.1-playtest → 0.4）。
+   */
+  function versionsOf(rec) {
+    const legacy = rec && typeof rec.gameVersion === 'string' ? rec.gameVersion : null;
+    const build = rec && typeof rec.buildVersion === 'string' ? rec.buildVersion : legacy ? legacy.replace(/^v/, '') : null;
+    let rules = rec && typeof rec.rulesVersion === 'string' ? rec.rulesVersion : null;
+    if (!rules && legacy) { const m = /^v?(\d+)\.(\d+)/.exec(legacy); rules = m ? m[1] + '.' + m[2] : null; }
+    return { build, rules, label: build ? 'v' + build : '(未标注)' };
+  }
+  const sameRules = (rec) => versionsOf(rec).rules === GameConfig.rulesVersion;
+
   /** 新记录；startedAt 由调用方传入（ISO 字符串） */
   function create(seed, startedAt, restartCount) {
     return {
       format: 'kline-game-record', version: 1,
-      gameVersion: GameConfig.gameVersion,
+      buildVersion: GameConfig.buildVersion, rulesVersion: GameConfig.rulesVersion,
       restartCount: restartCount || 0,   // 同一存档期间点击"重新开始"的累计次数（再来一局不计，只沿用）
       seed, startedAt, endedAt: null,
       rules: { totalTurns: GameConfig.totalTurns, quarters: GameConfig.quarters, quarterLength: GameConfig.quarterLength, scoring: GameConfig.scoring },
@@ -63,5 +78,5 @@
     return s;
   }
 
-  return { create, commitTurn, finalize, replay };
+  return { create, commitTurn, finalize, replay, versionsOf, sameRules };
 });

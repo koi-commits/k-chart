@@ -36,7 +36,7 @@ function fixtureDir() {
   const g2 = makeRecord(12, { research: {}, buy: false, restartCount: 0, durationMs: 1000 });
   const g3 = makeRecord(13, { research: { 1: 1 }, stopAfter: 6 });                       // 未结束
   const old = JSON.parse(JSON.stringify(makeRecord(14, { research: { 3: 3 } })));         // 伪造 v0.2：没有 score/grade/pass、没有 restartCount
-  old.gameVersion = 'v0.2-playtest'; delete old.restartCount; delete old.result.score; delete old.result.grade; delete old.result.pass;
+  delete old.buildVersion; delete old.rulesVersion; old.gameVersion = 'v0.2-playtest'; delete old.restartCount; delete old.result.score; delete old.result.grade; delete old.result.pass;
   w('a/g1.json', g1); w('g2.json', g2); w('g3-unfinished.json', g3); w('old-v02.json', old);
   w('broken.json', '{ not json'); w('other.json', { hello: 'world' }); w('readme.txt', 'ignored');
   return { dir, g1, g2, g3, old };
@@ -48,13 +48,13 @@ test('analyzeDir：读取有效记录、跳过坏文件、递归子目录', () =
   assert.equal(res.games.length, 4);
   assert.equal(res.errors.length, 2);                                   // 坏 JSON + format 不对；.txt 不读
   assert.ok(res.errors.some((e) => /不是合法的 JSON/.test(e.error)) && res.errors.some((e) => /不是试玩记录/.test(e.error)));
-  assert.deepEqual(Object.keys(res.byVersion).sort(), ['v0.2-playtest', Config.gameVersion].sort());
+  assert.deepEqual(Object.keys(res.byVersion).sort(), ['v0.2-playtest', 'v' + Config.buildVersion].sort());
 });
 
 test('单局明细：版本、重开次数、分数构成与等级、耗时、研究点', () => {
   const { dir, g1 } = fixtureDir();
   const g = A.analyzeDir(dir).games.find((x) => x.file === 'g1.json');
-  assert.equal(g.version, Config.gameVersion); assert.equal(g.restartCount, 2); assert.equal(g.seed, 11);
+  assert.equal(g.version, 'v' + Config.buildVersion); assert.equal(g.rulesVersion, Config.rulesVersion); assert.equal(g.restartCount, 2); assert.equal(g.seed, 11);
   assert.equal(g.finished, true);
   const s = g1.result.score;
   assert.ok(Math.abs(g.score.total - s.total) < 1e-9); assert.equal(g.score.grade, g1.result.grade);
@@ -90,7 +90,21 @@ test('旧版本记录：没有评分的按当前参数用各季度超额重算�
   // 参数没变，所以重算结果应等于原来的总分（用同一局的原始 score 对照）
   const orig = makeRecord(14, { research: { 3: 3 } }).result.score;
   assert.ok(Math.abs(g.score.total - orig.total) < 1e-9);
-  assert.match(A.formatReport(A.analyzeDir(dir)), /旧版本记录，按当前评分参数重算/);
+  assert.match(A.formatReport(A.analyzeDir(dir)), /规则版本不同的旧记录，按当前规则重算/);
+});
+
+test('版本：规则版本相同、程序版本不同（含只有 gameVersion 的 v0.4 / v0.4.1 记录）照常直接分析；规则版本不同的才重算', () => {
+  const rec = makeRecord(15, { research: { 1: 3 } });
+  const a = JSON.parse(JSON.stringify(rec)); a.buildVersion = Config.rulesVersion + '.0-older';                   // 程序版本不同
+  const b = JSON.parse(JSON.stringify(rec)); delete b.buildVersion; delete b.rulesVersion; b.gameVersion = 'v' + Config.rulesVersion + '.1-playtest';   // 旧格式、同规则
+  const c = JSON.parse(JSON.stringify(rec)); c.rulesVersion = '0.0';                                                 // 规则版本不同
+  for (const [r, same] of [[a, true], [b, true], [c, false]]) {
+    const g = A.analyzeRecord(r, 'x.json');
+    assert.equal(g.score.recomputed, !same);
+    assert.equal(g.estimate.available, same, JSON.stringify(g.estimate));
+    if (same) assert.ok(Math.abs(g.score.total - rec.result.score.total) < 1e-9);
+  }
+  assert.match(A.analyzeRecord(c, 'x.json').estimate.reason, /规则版本 0\.0/);
 });
 
 test('未结束的局：不进评分汇总，但研究/耗时照常统计', () => {
@@ -112,7 +126,7 @@ test('汇总：过关率、等级分布、平均总分、重新开始统计', ()
   assert.ok(Math.abs(s.passRate - scored.filter((g) => g.score.pass).length / 3 * 100) < 1e-9);
   assert.equal(s.maxRestarts, 2); assert.equal(s.gamesWithRestarts, 1);        // 旧版本没有该字段，不参与
   assert.equal(s.gamesWithoutResearch, 1);                                      // g2 没做研究
-  assert.equal(res.byVersion[Config.gameVersion].games, 3); assert.equal(res.byVersion['v0.2-playtest'].games, 1);
+  assert.equal(res.byVersion['v' + Config.buildVersion].games, 3); assert.equal(res.byVersion['v0.2-playtest'].games, 1);
 });
 
 test('命令行：文本报告包含关键字段；--json 可解析；缺少参数/不存在的目录报错', () => {

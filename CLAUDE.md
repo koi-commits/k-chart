@@ -107,14 +107,14 @@ npm run build                  # 构建 Windows 便携版（国内网络先设�
 
 ### 试玩记录（record.js / app.js）
 - 记录 = 种子 + 每回合 `{research, orders}`（与 `advanceTurn` 的 actions 同格式）+ 耗时 + 结果；`Record.replay(rec)` 重放得到与实际完全一致的结局（有测试覆盖，改规则代码时别破坏这一点：不要在 advanceTurn 里引入不可重放的状态）。
-- 记录里有 `gameVersion`（来自 `config.gameVersion`，当前 `v0.4.1-playtest`，也显示在界面右下角）。**发新一批试玩版本前要改这个值**，这样收回来的数据能区分版本。
+- 版本号分两部分（`config.js`）：`buildVersion` 程序版本（当前 `0.4.2-playtest`，界面右下角显示 `v` + 它）**只要修改代码就升级**；`rulesVersion` 规则版本（当前 `0.4`）**只有游戏规则或 config.js 数值变化时才升级**（升级后要重新定标）。记录里写 `buildVersion`（这局创建时）、`rulesVersion`，导出时再加 `exportedByBuild`。0.4.2 之前的记录只有 `gameVersion`（如 `v0.4.1-playtest`），`GameRecord.versionsOf(rec)` 按它的"主.次"推出规则版本（0.4.2 之前每次改规则都升次版本号）。所有版本判断都走 `versionsOf` / `sameRules`，不要直接比字符串。
 - 耗时由 `app.js` 的 `clockSync()` 测量：只在回合界面、**没有任何弹窗**、不在回放时计时（弹窗开关由 `GameModal.onChange` 通知），存档里的耗时不含读小结/看规则/看历史的时间；刷新后继续累计，传给 `commitTurn`。存档格式为 `{state, record, view}`：待执行订单队列在 `record.pending.orders`（与 `ui.pending` 是同一个数组，下单/撤单即存档）；`view` 是还没看完的结算弹窗（`{weeklyTurn}` / `{quarter}`）。结束回合时**先** `advanceTurn` + `commitTurn` 并存档，再回放（回放只是展示）；回放途中退出，重进直接显示回合小结，不重播、不重复结算。
-- **旧存档不迁移**：`GameSave.check` 发现存档的 `record.gameVersion` 与当前版本不同、或缺关键字段（如已结算却没有 `result.score`）时，不进入游戏，显示"此存档来自旧版本 vX，无法在当前版本继续"，提供"导出原记录"（原样导出，不改 gameVersion、不重新计分）和"开始新局"。正常导出也不覆盖记录的 gameVersion。
+- **存档兼容按规则版本**：规则版本相同（程序版本不同也行）的存档照常加载。**规则版本不同的旧存档不迁移**：`GameSave.check` 发现存档记录的规则版本与当前不同、或缺关键字段（如已结算却没有 `result.score`）时，不进入游戏，显示"此存档来自旧版本 vX，无法在当前版本继续"，提供"导出原记录"（原样导出，不改版本号、不重新计分）和"开始新局"。正常导出也不覆盖记录原有的版本号。
 - 弹窗的键盘与焦点由 `ui/modal.js` 统一管理（监听各 `.overlay` 的 hidden 属性），新增弹窗只要用 `.overlay` 就自动生效，不要在别处给背景按钮绑快捷键。
 - 所有弹窗卡片（`.card`）高度不超过视口、内容区滚动，底部按钮（`.card .actions`）sticky 固定；新增弹窗沿用这套结构，并在 `tests/e2e/ui.e2e.js` 里加检查。
 
 ### 记录分析（scripts/analyze-records.js）
-- 读取一个文件夹里的所有导出 JSON（递归），跳过坏文件并说明原因。**记录格式变了要同步这个脚本和 `tests/analyze-records.test.js`**。估值误差通过 `Record.replay` 重放得到研究日志里的 `trueV`，所以只有 `gameVersion` 与当前代码一致、且重放结果与记录一致的局才有误差数据；改了会影响价格路径的规则（事件抽取、价格模型、引擎）后，旧版本记录就只能看分数构成。
+- 读取一个文件夹里的所有导出 JSON（递归），跳过坏文件并说明原因。**记录格式变了要同步这个脚本和 `tests/analyze-records.test.js`**。估值误差通过 `Record.replay` 重放得到研究日志里的 `trueV`，所以只有**规则版本**与当前一致、且重放结果与记录一致的局才有误差数据（规则版本相同、程序版本不同的记录照常分析）；改了会影响价格路径的规则（事件抽取、价格模型、引擎）后，旧版本记录就只能看分数构成。
 
 ### 即时反馈（summary.js / weekly.js / history.js）
 - 顶部评分条以**本季度**为主：本季度目前得分、本季度目标（超额>0 得基础分、超额达多少点拿满）、达到上限/下限时显示“本季度已封顶/已触底”；总分、预估等级（开局显示“—”）和等级尺放在次要位置；距下一等级的差距超过剩余回合理论可得分的一半时不再显示“还差 X 分”（`progress().nextTooFar`）。下面是收益率 vs 基准、超额回撤（超阈值开始扣分）、四个季度的得分。季度成绩单同时显示本季度绝对收益率、基准收益率、两者之差和一句解释（`GameSummary.quarterNote`）。结算页有“改进线索”：最大丢分项、1–2 个反事实对照（`GameScoring.diagnose`，数值由本局数据重算）和对应建议（文案在 `js/game/advice.js` 预设表，逻辑只返回 key）。全部由 `GameSummary.progress` 计算，数值读 config。季度成绩单与结算页展示分数构成明细。

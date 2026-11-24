@@ -7,7 +7,9 @@
   else root.GameConfig = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
   return {
-    gameVersion: 'v0.4.1-playtest', // 试玩版本号：显示在界面角落，并写入导出的记录
+    // 版本号分两部分（都写入导出的记录）：
+    buildVersion: '0.4.2-playtest', // 程序版本：只要修改代码就升级；显示在界面右下角（前面加 v）
+    rulesVersion: '0.4',            // 规则版本：只有游戏规则或本文件里的数值变化时才升级；存档能否继续、记录能否直接分析都按它判断
 
     // ── 规则 ──
     initialCash: 100000,       // 本金

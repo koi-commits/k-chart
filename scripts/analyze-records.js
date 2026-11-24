@@ -8,7 +8,9 @@
    输出：每局的版本、总分与等级、分数构成、最大回撤、研究点使用、研究估值误差、每回合耗时、
          重新开始次数；以及所有记录的汇总统计（按版本分组 + 全部）。
    兼容旧版本记录：v0.3 之前没有评分，若记录里有各季度超额则按当前 config.scoring 重算并标注"重算"；
-   估值误差需要重放这一局（要求记录的 gameVersion 与当前代码一致，且重放结果与记录一致），否则标注"无法重放"。
+   版本：按规则版本（rulesVersion；旧记录由 gameVersion 的"主.次"推出，见 record.js 的 versionsOf）判断能否直接分析。
+   规则版本相同的记录直接用记录里的分数、可以重放算估值误差；规则版本不同的按当前规则重放重算分数并标注。
+   估值误差需要重放这一局（要求规则版本与当前一致，且重放结果与记录一致），否则标注"无法重放"。
    ============================================ */
 'use strict';
 const fs = require('fs');
@@ -58,11 +60,11 @@ function rescoreByReplay(rec) {
 function scoreOf(rec) {
   const r = rec.result;
   if (!r) return null;
-  if (rec.gameVersion !== Config.gameVersion) {
+  if (!Record.sameRules(rec)) {
     const rs = rescoreByReplay(rec);
     if (rs) return rs;
   }
-  if (r.score && r.score.quarters && rec.gameVersion === Config.gameVersion) return scoreFrom(r.score, r);
+  if (r.score && r.score.quarters && Record.sameRules(rec)) return scoreFrom(r.score, r);
   if (Array.isArray(r.quarters) && r.quarters.length && r.quarters[0].diff != null) {
     // 无法重放：只能用记录里的各季度超额 + 账户最大回撤（绝对值，不是超额回撤）近似
     const diffs = r.quarters.map((q) => q.diff);
@@ -77,7 +79,7 @@ function scoreOf(rec) {
 
 /** 重放这一局，取研究日志（含研究当时的真实价值）。失败返回 {ok:false, reason} */
 function tryReplay(rec) {
-  if (rec.gameVersion !== Config.gameVersion) return { ok: false, reason: `版本 ${rec.gameVersion || '未标注'} 与当前代码 ${Config.gameVersion} 不同` };
+  if (!Record.sameRules(rec)) { const v = Record.versionsOf(rec); return { ok: false, reason: `规则版本 ${v.rules || '未标注'}（${v.label}）与当前规则版本 ${Config.rulesVersion} 不同` }; }
   if (!Array.isArray(rec.turns) || !rec.turns.length) return { ok: false, reason: '没有回合数据' };
   try {
     const s = Record.replay(rec);
@@ -135,7 +137,7 @@ function analyzeRecord(rec, file) {
 
   const r = rec.result;
   return {
-    file: file ? path.basename(file) : null, seed: rec.seed, version: rec.gameVersion || '(未标注)', restartCount: rec.restartCount != null ? rec.restartCount : null,
+    file: file ? path.basename(file) : null, seed: rec.seed, version: Record.versionsOf(rec).label, rulesVersion: Record.versionsOf(rec).rules, restartCount: rec.restartCount != null ? rec.restartCount : null,
     startedAt: rec.startedAt || null, endedAt: rec.endedAt || null, finished: !!r, turnsPlayed: turns.length,
     outcome: r ? r.outcome : null, totalAssets: r ? r.totalAssets : null, returnPct: r ? r.returnPct : null, benchPct: r ? r.benchmarkReturnPct : null,
     excessPct: r ? r.returnPct - r.benchmarkReturnPct : null, maxDrawdownPct: r ? r.maxDrawdown * 100 : null,
@@ -186,13 +188,13 @@ function analyzeDir(dir) {
 // ───────── 文本输出 ─────────
 function formatGame(g) {
   const L = [];
-  L.push(`■ ${g.file}　版本 ${g.version}　种子 ${g.seed}　重新开始 ${g.restartCount == null ? '—（旧版本无此字段）' : g.restartCount + ' 次'}`);
+  L.push(`■ ${g.file}　版本 ${g.version}（规则 ${g.rulesVersion || '—'}）　种子 ${g.seed}　重新开始 ${g.restartCount == null ? '—（旧版本无此字段）' : g.restartCount + ' 次'}`);
   L.push(`  ${g.finished ? `已结束（${g.outcome === 'bankrupt' ? '中途判负' : '打完 ' + g.turnsPlayed + ' 回合'}）` : `未结束（已打 ${g.turnsPlayed} 回合）`}　开始 ${g.startedAt || '—'}${g.endedAt ? '　结束 ' + g.endedAt : ''}`);
   if (g.finished) {
     L.push(`  结果：总资产 ¥${Math.round(g.totalAssets).toLocaleString('zh-CN')}　收益率 ${sg(g.returnPct, 2)}%　基准 ${sg(g.benchPct, 2)}%　超额 ${sg(g.excessPct, 2)} 点　最大回撤 ${pct(g.maxDrawdownPct, 2)}`);
     if (g.score) {
       const s = g.score;
-      L.push(`  评分：总分 ${sg(s.total)}　等级 ${s.grade}　${s.pass ? '✔ 过关' : '✘ 未过关'}${s.recomputed ? '　（旧版本记录，按当前评分参数重算）' : ''}`);
+      L.push(`  评分：总分 ${sg(s.total)}　等级 ${s.grade}　${s.pass ? '✔ 过关' : '✘ 未过关'}${s.recomputed ? '　（规则版本不同的旧记录，按当前规则重算）' : ''}`);
       L.push(`  构成：季度分 ${s.quarters.map((x) => sg(x)).join(' / ')}（合计 ${sg(s.quarterTotal)}） + 终局分 ${sg(s.final)}（全局超额 ${sg(s.finalExcess, 2)} 点） − 回撤扣分 ${num(s.penalty)}`);
       const pos = Math.max(0, s.quarterTotal + s.final);
       if (s.penalty > 0 && pos > 0) L.push(`  回撤扣分占正分的 ${num(s.penalty / pos * 100, 0)}%；若无回撤扣分总分 ${sg(pos)}`);
@@ -212,7 +214,7 @@ function formatGame(g) {
 }
 
 function formatSummary(title, s) {
-  const L = [`【${title}】${s.games} 局（已结束 ${s.finished}，未结束 ${s.unfinished}；有评分 ${s.scored}${s.recomputedScores ? `，其中旧版本重算 ${s.recomputedScores}` : ''}）`];
+  const L = [`【${title}】${s.games} 局（已结束 ${s.finished}，未结束 ${s.unfinished}；有评分 ${s.scored}${s.recomputedScores ? `，其中旧规则版本重算 ${s.recomputedScores}` : ''}）`];
   if (s.scored) {
     L.push(`  过关率(≥B) ${pct(s.passRate)}　等级分布 S ${s.gradeDist.S} / A ${s.gradeDist.A} / B ${s.gradeDist.B} / C ${s.gradeDist.C} / D ${s.gradeDist.D}`);
     L.push(`  总分 平均 ${sg(s.meanTotal)} 中位数 ${sg(s.medianTotal)}　构成均值：季度分 ${sg(s.meanQuarterTotal)} + 终局分 ${sg(s.meanFinal)} − 回撤扣分 ${num(s.meanPenalty)}`);

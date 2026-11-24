@@ -171,8 +171,10 @@ const App = (() => {
 
   /** 导出本局记录为 JSON 文件（种子、每回合行动与耗时、最终结果） */
   async function exportRecord() {
-    // gameVersion 保留记录创建时的版本（不替换成当前版本）
-    const out = Object.assign({}, record, { exportedAt: new Date().toISOString(), app: 'kline-game-v0' });
+    // 两个版本号都写入：buildVersion / rulesVersion 是这局创建时的版本（旧存档继续玩的局按 gameVersion 推出），
+    // exportedByBuild 是导出时的程序版本
+    const v = GameRecord.versionsOf(record);
+    const out = Object.assign({}, record, { buildVersion: v.build, rulesVersion: v.rules, exportedByBuild: GameConfig.buildVersion, exportedAt: new Date().toISOString(), app: 'kline-game-v0' });
     const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
     await downloadText(`kline-game-seed${record.seed}-${stamp}.json`, JSON.stringify(out, null, 2), 'exportMsg');
   }
@@ -201,7 +203,7 @@ const App = (() => {
     el.innerHTML = `<div class="card oldsave-card">
       <h2>无法继续上次的对局</h2>
       <div class="sub" id="oldSaveMsg">${esc(GameSave.message(bad))}</div>
-      <div class="muted" style="font-size:13px;line-height:1.7">当前版本是 ${esc(GameConfig.gameVersion)}。不同版本的规则和计分不同，旧存档不做转换。你可以先把原来的试玩记录导出保存（原样导出，不改版本号、不按新规则重新计分），再开始新的一局。</div>
+      <div class="muted" style="font-size:13px;line-height:1.7">当前版本是 v${esc(GameConfig.buildVersion)}（规则版本 ${esc(GameConfig.rulesVersion)}）。不同版本的规则和计分不同，旧存档不做转换。你可以先把原来的试玩记录导出保存（原样导出，不改版本号、不按新规则重新计分），再开始新的一局。</div>
       <div class="export-msg muted" id="oldSaveExportMsg"></div>
       <div class="actions"><button data-action="oldsave-export">💾 导出原记录</button> <button class="primary" data-action="oldsave-new">开始新局</button></div>
     </div>`;
@@ -258,7 +260,9 @@ const App = (() => {
 
   function init() {
     if (typeof LightweightCharts === 'undefined') { setTimeout(init, 100); return; }
-    document.getElementById('verTag').textContent = GameConfig.gameVersion;
+    const tag = document.getElementById('verTag');
+    tag.textContent = 'v' + GameConfig.buildVersion;               // 程序版本
+    tag.title = '程序版本 v' + GameConfig.buildVersion + '，规则版本 ' + GameConfig.rulesVersion;
     ChartManager.init();
     GameModal.init();               // 弹窗打开时背景 inert、焦点锁在弹窗内
     GameModal.onChange(() => clockSync());   // 任何弹窗开关都同步一次回合计时（新闻弹窗、结算页等也算）
@@ -284,7 +288,8 @@ const App = (() => {
       } catch (e) {
         console.warn('存档无法显示', e);
         state = null; record = null; view = null;
-        showOldSave({ ok: false, reason: 'broken', field: String(e && e.message || e), version: saved.record && saved.record.gameVersion, record: saved.record, raw: null });
+        const v = GameRecord.versionsOf(saved.record || {});
+        showOldSave({ ok: false, reason: 'broken', field: String(e && e.message || e), version: v.build ? v.label : null, rules: v.rules, record: saved.record, raw: null });
         return;
       }
     } else newGame(0);

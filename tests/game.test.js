@@ -181,7 +181,8 @@ test('试玩记录：restartCount 默认 0，create 时可沿用', () => {
   const Record = G('record.js');
   assert.equal(Record.create(1, 'x').restartCount, 0);
   assert.equal(Record.create(1, 'x', 3).restartCount, 3);
-  assert.equal(Record.create(1, 'x').gameVersion, Config.gameVersion);
+  assert.equal(Record.create(1, 'x').buildVersion, Config.buildVersion);
+  assert.equal(Record.create(1, 'x').rulesVersion, Config.rulesVersion);
   assert.deepEqual(Record.create(1, 'x').rules.scoring, Config.scoring);
 });
 
@@ -290,7 +291,7 @@ test('试玩记录：回合行动记录后可重放出完全相同的结果', ()
     Record.commitTurn(rec, { turn: s.turn, orders, durationMs: 1234.4, newsShown: s.news.map((n) => n.headline), state: next, endedAt: 'x' });
     s = next;
   }
-  assert.equal(rec.gameVersion, Config.gameVersion);
+  assert.equal(rec.buildVersion, Config.buildVersion); assert.equal(rec.rulesVersion, Config.rulesVersion);
   assert.equal(rec.turns.length, Config.totalTurns);
   assert.equal(rec.turns[0].durationMs, 1234);
   assert.equal(rec.result.totalAssets, s.result.totalAssets);
@@ -603,4 +604,19 @@ test('规则页：评分 ≤ 5 条、每条一句话、数字都在悬停说明�
   assert.match(all, /最大回撤 ＝ 你的总资产相对基准净值，从最高点回落的最大幅度/);
   const S = Config.scoring;
   for (const n of [S.drawdown.maxPenalty, S.totalMin, S.grades.B, S.quarter.beatBase, S.final.perPoint]) assert.ok(all.includes(String(n)), '悬停说明应含数值 ' + n);
+});
+
+test('版本号：buildVersion / rulesVersion；旧记录按 gameVersion 的"主.次"推出规则版本', () => {
+  const Record = G('record.js');
+  assert.match(Config.buildVersion, /^\d+\.\d+\.\d+-playtest$/); assert.match(Config.rulesVersion, /^\d+\.\d+$/);
+  assert.ok(Config.buildVersion.startsWith(Config.rulesVersion + '.'), '程序版本的主.次应与规则版本一致');
+  assert.equal(Config.gameVersion, undefined, '不再使用单一的 gameVersion');
+  assert.deepEqual(Record.versionsOf(Record.create(1, 'x')), { build: Config.buildVersion, rules: Config.rulesVersion, label: 'v' + Config.buildVersion });
+  assert.deepEqual(Record.versionsOf({ gameVersion: 'v0.4.1-playtest' }), { build: '0.4.1-playtest', rules: '0.4', label: 'v0.4.1-playtest' });
+  assert.deepEqual(Record.versionsOf({ gameVersion: 'v0.4-playtest' }), { build: '0.4-playtest', rules: '0.4', label: 'v0.4-playtest' });
+  assert.equal(Record.versionsOf({ gameVersion: 'v0.3-playtest' }).rules, '0.3');
+  assert.deepEqual(Record.versionsOf({}), { build: null, rules: null, label: '(未标注)' });
+  assert.equal(Record.sameRules({ gameVersion: 'v0.4.1-playtest' }), Config.rulesVersion === '0.4');
+  assert.equal(Record.sameRules({ buildVersion: '9.9.9-x', rulesVersion: Config.rulesVersion }), true);
+  assert.equal(Record.sameRules({ gameVersion: 'v0.3-playtest' }), false);
 });

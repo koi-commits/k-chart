@@ -117,7 +117,7 @@ for (const vp of SIZES) {
       if (t === 7) await buy(page, 1, 1);
     } } });
     const rec = await checkSettlement(page, tag);
-    assert.equal(rec.gameVersion, Config.gameVersion);
+    assert.equal(rec.buildVersion, Config.buildVersion); assert.equal(rec.rulesVersion, Config.rulesVersion); assert.equal(rec.exportedByBuild, Config.buildVersion);
     assertReplayable(rec);
     await page.click('[data-action=restart-confirmed]');
     assert.equal(await page.evaluate(() => App.getState().turn), 1);
@@ -147,6 +147,8 @@ test('界面：仓库自带的 AI 试玩记录重放成当前版本存档后，�
 });
 
 // ── 旧版本 / 缺字段存档 ──
+/** 把记录改成 0.4.2 之前的旧格式：只有 gameVersion */
+const legacy = (rec, gv) => { delete rec.buildVersion; delete rec.rulesVersion; rec.gameVersion = gv; };
 function finishedSave(seed, mutate) {
   let s = State.newGame(seed);
   const rec = Record.create(seed, '2026-01-01T00:00:00.000Z', 0);
@@ -161,9 +163,10 @@ function finishedSave(seed, mutate) {
 }
 
 const OLD = [
-  ['v0.2 已结算存档（没有 result.score）', (d) => { d.record.gameVersion = 'v0.2-playtest'; delete d.state.result.score; delete d.state.result.excessDrawdown; delete d.record.result.score; }, /此存档来自旧版本 v0\.2-playtest，无法在当前版本继续/, 'v0.2-playtest'],
-  ['v0.3 存档（没有超额回撤）', (d) => { d.record.gameVersion = 'v0.3-playtest'; delete d.state.result.excessDrawdown; d.record.result.score.total = 7.5; }, /此存档来自旧版本 v0\.3-playtest，无法在当前版本继续/, 'v0.3-playtest'],
-  ['当前版本但缺少 result.score', (d) => { delete d.state.result.score; }, /缺少关键数据（state\.result\.score），无法在当前版本继续/, Config.gameVersion]
+  ['v0.2 已结算存档（没有 result.score）', (d) => { legacy(d.record, 'v0.2-playtest'); delete d.state.result.score; delete d.state.result.excessDrawdown; delete d.record.result.score; }, /此存档来自旧版本 v0\.2-playtest（规则版本 0\.2），无法在当前版本继续/, 'v0.2-playtest'],
+  ['v0.3 存档（没有超额回撤）', (d) => { legacy(d.record, 'v0.3-playtest'); delete d.state.result.excessDrawdown; d.record.result.score.total = 7.5; }, /此存档来自旧版本 v0\.3-playtest（规则版本 0\.3），无法在当前版本继续/, 'v0.3-playtest'],
+  ['规则版本不同的新格式存档', (d) => { d.record.rulesVersion = '0.3'; }, /此存档来自旧版本 v[\d.]+-playtest（规则版本 0\.3），无法在当前版本继续/, null],
+  ['当前版本但缺少 result.score', (d) => { delete d.state.result.score; }, /缺少关键数据（state\.result\.score），无法在当前版本继续/, null]
 ];
 for (const [name, mutate, msg, ver] of OLD) {
   test(`旧存档：${name} → 提示无法继续，可导出原记录、可开始新局，不报错`, { timeout: 60000 }, async () => {
@@ -177,14 +180,14 @@ for (const [name, mutate, msg, ver] of OLD) {
     await H.shot(page, 'oldsave-' + ver);
     const [dl] = await Promise.all([page.waitForEvent('download'), page.click('[data-action=oldsave-export]')]);
     const out = JSON.parse(fs.readFileSync(await dl.path(), 'utf8'));
-    assert.deepEqual(out, save.record, '原样导出存档里的记录');
-    assert.equal(out.gameVersion, ver, 'gameVersion 保留原版本');
+    assert.deepEqual(out, save.record, '原样导出存档里的记录（版本号、分数都不改）');
+    if (ver) assert.equal(out.gameVersion, ver, 'gameVersion 保留原版本');
     // 存档在点"开始新局"之前不被覆盖
     assert.equal(await page.evaluate((k) => localStorage.getItem(k), SAVE_KEY), JSON.stringify(save));
     await page.click('[data-action=oldsave-new]');
     assert.equal(await H.visible(page, '#oldSave'), false);
     assert.equal(await page.evaluate(() => App.getState().turn), 1);
-    assert.equal(await page.evaluate(() => App.getRecord().gameVersion), Config.gameVersion);
+    assert.equal(await page.evaluate(() => App.getRecord().buildVersion), Config.buildVersion);
     assert.deepEqual(errors, []);
     await ctx.close();
   });
@@ -348,6 +351,30 @@ test('回合计时：小结打开期间等待后刷新，下一回合耗时从 0
   await reload();                                               // 历史弹窗打开时刷新
   const a1 = await acc();
   assert.ok(a1 >= 500 && a1 < 1000, `只应计入关掉小结后、打开历史前的约 0.6 秒（实际 ${a1}ms）`);
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+// ── 版本号：按规则版本判断存档兼容 ──
+test('版本：规则版本相同的 v0.4.1 旧格式存档（进行中）可以继续玩；导出时写入两个版本号；角落显示程序版本', { timeout: 60000 }, async () => {
+  let s = State.newGame(77);
+  const rec = Record.create(77, '2026-01-01T00:00:00.000Z', 0);
+  for (let i = 0; i < 2; i++) { const n = State.advanceTurn(s, {}); Record.commitTurn(rec, { turn: s.turn, orders: [], durationMs: 1000, newsShown: [], state: n }); s = n; }
+  legacy(rec, 'v' + Config.rulesVersion + '.1-playtest');
+  delete rec.pending.orders;                                       // v0.4.1 之前的存档没有这个字段
+  const { ctx, page, errors } = await H.openPage(browser, SIZES[0], injectSave({ state: s, record: rec, view: null }));
+  assert.equal(await H.visible(page, '#oldSave'), false, '规则版本相同的存档不应被当成旧存档');
+  assert.equal(await page.evaluate(() => App.getState().turn), 3);
+  assert.equal(await page.textContent('#verTag'), 'v' + Config.buildVersion);
+  await buy(page, 0, 1);
+  await playToEnd(page);
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('[data-action=export]')]);
+  const out = JSON.parse(fs.readFileSync(await dl.path(), 'utf8'));
+  assert.equal(out.buildVersion, Config.rulesVersion + '.1-playtest', '记录的程序版本 = 这局创建时的版本');
+  assert.equal(out.rulesVersion, Config.rulesVersion);
+  assert.equal(out.exportedByBuild, Config.buildVersion);
+  assert.equal(out.gameVersion, 'v' + Config.rulesVersion + '.1-playtest', '旧字段原样保留');
+  assertReplayable(out);
   assert.deepEqual(errors, []);
   await ctx.close();
 });
