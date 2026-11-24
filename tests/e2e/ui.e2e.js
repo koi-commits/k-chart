@@ -1,6 +1,7 @@
 // 端到端测试（Playwright，真实界面）：npm run test:e2e
 // 1) 三种窗口尺寸下各打完一局：所有弹窗的按钮都看得见、点得到（截图在 test-results/e2e/）
 // 2) 仓库自带的 AI 试玩记录按当前规则重放成存档后，结算页按钮可见可点
+// 3) 旧版本 / 缺字段存档：不进入游戏、不报错，可原样导出原记录、可开始新局
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -143,3 +144,47 @@ test('界面：仓库自带的 AI 试玩记录重放成当前版本存档后，�
     await ctx.close();
   }
 });
+
+// ── 旧版本 / 缺字段存档 ──
+function finishedSave(seed, mutate) {
+  let s = State.newGame(seed);
+  const rec = Record.create(seed, '2026-01-01T00:00:00.000Z', 0);
+  while (s.status === 'playing') {
+    const next = State.advanceTurn(s, {});
+    Record.commitTurn(rec, { turn: s.turn, orders: [], durationMs: 1000, newsShown: [], state: next, endedAt: '2026-01-01T00:10:00.000Z' });
+    s = next;
+  }
+  const d = JSON.parse(JSON.stringify({ state: s, record: rec, view: null }));
+  mutate(d);
+  return d;
+}
+
+const OLD = [
+  ['v0.2 已结算存档（没有 result.score）', (d) => { d.record.gameVersion = 'v0.2-playtest'; delete d.state.result.score; delete d.state.result.excessDrawdown; delete d.record.result.score; }, /此存档来自旧版本 v0\.2-playtest，无法在当前版本继续/, 'v0.2-playtest'],
+  ['v0.3 存档（没有超额回撤）', (d) => { d.record.gameVersion = 'v0.3-playtest'; delete d.state.result.excessDrawdown; d.record.result.score.total = 7.5; }, /此存档来自旧版本 v0\.3-playtest，无法在当前版本继续/, 'v0.3-playtest'],
+  ['当前版本但缺少 result.score', (d) => { delete d.state.result.score; }, /缺少关键数据（state\.result\.score），无法在当前版本继续/, Config.gameVersion]
+];
+for (const [name, mutate, msg, ver] of OLD) {
+  test(`旧存档：${name} → 提示无法继续，可导出原记录、可开始新局，不报错`, { skip, timeout: 60000 }, async () => {
+    const save = finishedSave(31, mutate);
+    const { ctx, page, errors } = await H.openPage(browser, SIZES[0], injectSave(save));
+    assert.ok(await H.visible(page, '#oldSave'), '应显示旧存档提示');
+    assert.match(await page.textContent('#oldSaveMsg'), msg);
+    assert.equal(await H.visible(page, '#settlement'), false);
+    await expectClickable(page, '[data-action=oldsave-export]', '导出原记录');
+    await expectClickable(page, '[data-action=oldsave-new]', '开始新局');
+    await H.shot(page, 'oldsave-' + ver);
+    const [dl] = await Promise.all([page.waitForEvent('download'), page.click('[data-action=oldsave-export]')]);
+    const out = JSON.parse(fs.readFileSync(await dl.path(), 'utf8'));
+    assert.deepEqual(out, save.record, '原样导出存档里的记录');
+    assert.equal(out.gameVersion, ver, 'gameVersion 保留原版本');
+    // 存档在点"开始新局"之前不被覆盖
+    assert.equal(await page.evaluate((k) => localStorage.getItem(k), SAVE_KEY), JSON.stringify(save));
+    await page.click('[data-action=oldsave-new]');
+    assert.equal(await H.visible(page, '#oldSave'), false);
+    assert.equal(await page.evaluate(() => App.getState().turn), 1);
+    assert.equal(await page.evaluate(() => App.getRecord().gameVersion), Config.gameVersion);
+    assert.deepEqual(errors, []);
+    await ctx.close();
+  });
+}

@@ -3,6 +3,7 @@ const App = (() => {
   let state = null;
   let record = null;      // 试玩记录（见 game/record.js），随存档保存
   let segStart = Date.now(); // 本回合当前停留片段的起点（毫秒）
+  let badSave = null;       // 无法加载的旧存档（见 GameSave.check）
   const ui = { selected: null, pending: [], lots: 1, researchN: 1, busy: false };
 
   function render(upto) {
@@ -34,10 +35,11 @@ const App = (() => {
   function newGame(restarts) {
     state = GameState.newGame(crypto.getRandomValues(new Uint32Array(1))[0]); // 种子在 UI 层生成
     record = GameRecord.create(state.seed, new Date().toISOString(), restarts || 0);
-    segStart = Date.now();
+    segStart = Date.now(); badSave = null;
     ui.pending = []; ui.lots = 1; ui.researchN = 1;
     ui.selected = Object.keys(state.companies)[0];
     GameSave.save(state, record);
+    hideOldSave();
     GameView.hideSettlement();
     GameReview.close();
     render();
@@ -90,7 +92,7 @@ const App = (() => {
   function cancel(i) { ui.pending.splice(i, 1); render(); }
 
   function endTurn() {
-    if (ui.busy || state.status !== 'playing') return;
+    if (!state || ui.busy || state.status !== 'playing') return;
     readLots();
     ui.busy = true;
     const orders = ui.pending.map((o) => ({ id: o.id, side: o.side, shares: o.lots * GameConfig.lotSize }));
@@ -134,11 +136,15 @@ const App = (() => {
 
   /** 导出本局记录为 JSON 文件（种子、每回合行动与耗时、最终结果） */
   async function exportRecord() {
-    const out = Object.assign({}, record, { exportedAt: new Date().toISOString(), app: 'kline-game-v0', gameVersion: GameConfig.gameVersion });
-    const text = JSON.stringify(out, null, 2);
+    // gameVersion 保留记录创建时的版本（不替换成当前版本）
+    const out = Object.assign({}, record, { exportedAt: new Date().toISOString(), app: 'kline-game-v0' });
     const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
-    const filename = `kline-game-seed${record.seed}-${stamp}.json`;
-    const msg = (t) => { const el = document.getElementById('exportMsg'); if (el) el.textContent = t; };
+    await downloadText(`kline-game-seed${record.seed}-${stamp}.json`, JSON.stringify(out, null, 2), 'exportMsg');
+  }
+
+  /** 保存文本文件：Electron 走系统保存对话框，浏览器直接下载；结果写到 msgId 元素里 */
+  async function downloadText(filename, text, msgId) {
+    const msg = (t) => { const el = document.getElementById(msgId); if (el) el.textContent = t; };
     if (window.gameAPI && window.gameAPI.saveRecord) {          // Electron：系统保存对话框
       const r = await window.gameAPI.saveRecord(filename, text);
       msg(r.ok ? '✔ 已保存到：' + r.path : r.canceled ? '已取消导出' : '✘ 保存失败：' + r.error);
@@ -152,8 +158,36 @@ const App = (() => {
     msg('已开始下载 ' + filename);
   }
 
+  // ── 无法加载的旧存档 ──
+  function showOldSave(bad) {
+    badSave = bad;
+    const el = document.getElementById('oldSave');
+    const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    el.innerHTML = `<div class="card oldsave-card">
+      <h2>无法继续上次的对局</h2>
+      <div class="sub" id="oldSaveMsg">${esc(GameSave.message(bad))}</div>
+      <div class="muted" style="font-size:13px;line-height:1.7">当前版本是 ${esc(GameConfig.gameVersion)}。不同版本的规则和计分不同，旧存档不做转换。你可以先把原来的试玩记录导出保存（原样导出，不改版本号、不按新规则重新计分），再开始新的一局。</div>
+      <div class="export-msg muted" id="oldSaveExportMsg"></div>
+      <div class="actions"><button data-action="oldsave-export">💾 导出原记录</button> <button class="primary" data-action="oldsave-new">开始新局</button></div>
+    </div>`;
+    el.hidden = false;
+  }
+  function hideOldSave() { const el = document.getElementById('oldSave'); if (el) el.hidden = true; }
+
+  async function exportOldSave() {
+    if (!badSave) return;
+    const o = GameSave.originalExport(badSave);
+    const tag = String(o.version || 'unknown').replace(/[^\w.-]/g, '_');
+    await downloadText(`kline-game-${o.seed != null ? 'seed' + o.seed + '-' : ''}${tag}-original.json`, o.text, 'oldSaveExportMsg');
+  }
+
+  function startAfterOldSave() {
+    newGame(0);
+    if (!GameRules.seen()) openRules(true);
+  }
+
   function restart() {
-    if (ui.busy) return;
+    if (ui.busy || !state) return;
     if (state.status === 'playing' && !window.confirm('放弃当前对局并重新开始？')) return;
     newGame(record.restartCount + 1);   // 记录"重新开始"次数（取消确认不计）
   }
@@ -162,6 +196,7 @@ const App = (() => {
   function onClick(e) {
     const el = e.target.closest('[data-action]');
     if (!el || ui.busy) return;
+    if (!state && !/^oldsave-/.test(el.dataset.action)) return;   // 旧存档提示页上只响应它自己的两个按钮
     const d = el.dataset;
     switch (d.action) {
       case 'select': select(d.id); break;
@@ -172,6 +207,8 @@ const App = (() => {
       case 'cancel': cancel(parseInt(d.i, 10)); break;
       case 'restart-confirmed': newGame(record.restartCount); break;   // 再来一局：沿用次数，不加
       case 'export': exportRecord(); break;
+      case 'oldsave-export': exportOldSave(); break;
+      case 'oldsave-new': startAfterOldSave(); break;
       case 'rules-close': closeRules(); break;
       case 'weekly-close': closeWeekly(); break;
       case 'quarter-close': closeQuarter(); break;
@@ -198,11 +235,19 @@ const App = (() => {
     window.addEventListener('resize', () => ChartManager.resize());
 
     const saved = GameSave.load();     // 有存档就自动继续（没有手动读档）
+    if (saved && !saved.ok) { showOldSave(saved); return; }   // 旧版本/缺字段：不进入游戏，不报错
     if (saved) {
-      state = saved.state; record = saved.record; segStart = Date.now();
-      ui.selected = Object.keys(state.companies)[0];
-      render();
-      if (state.status === 'ended') GameView.renderSettlement(state);
+      try {
+        state = saved.state; record = saved.record; segStart = Date.now();
+        ui.selected = Object.keys(state.companies)[0];
+        render();
+        if (state.status === 'ended') GameView.renderSettlement(state);
+      } catch (e) {
+        console.warn('存档无法显示', e);
+        state = null; record = null;
+        showOldSave({ ok: false, reason: 'broken', field: String(e && e.message || e), version: saved.record && saved.record.gameVersion, record: saved.record, raw: null });
+        return;
+      }
     } else newGame(0);
     if (!GameRules.seen()) openRules(true);   // 第一次开局：弹出规则说明
   }

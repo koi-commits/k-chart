@@ -1,25 +1,80 @@
 /* ui/save.js — localStorage 自动存档（单槽，覆盖写；不提供手动读档）
-   存 { state, record }：record 是试玩记录（见 game/record.js） */
+   存 { state, record }：record 是试玩记录（见 game/record.js）
+   不做数据迁移：版本与当前不一致、或缺少关键字段的存档一律不进入游戏（见 check）。 */
 const GameSave = (() => {
   const KEY = 'kline-game-v0-save';
-  const VERSION = 2; // state.version；版本不符的旧存档直接丢弃
+  const VERSION = 2; // state.version（存档结构版本）
 
   function save(state, record) {
     try { localStorage.setItem(KEY, JSON.stringify({ state, record })); } catch (e) { console.warn('存档失败', e); }
   }
 
-  /** 读取存档 → {state, record}；格式不对或版本不符返回 null */
+  const isNum = (x) => typeof x === 'number' && isFinite(x);
+  const isObj = (x) => !!x && typeof x === 'object';
+
+  /** 当前版本存档缺了哪个关键字段（没缺返回 null）。只检查，不修补。 */
+  function missingField(d) {
+    const s = d.state, r = d.record;
+    if (!isObj(s)) return 'state';
+    if (s.version !== VERSION) return 'state.version';
+    for (const k of ['companies', 'candles', 'vPath', 'positions', 'research']) if (!isObj(s[k])) return 'state.' + k;
+    if (!Array.isArray(s.equity) || !s.equity.length) return 'state.equity';
+    if (s.status !== 'playing' && s.status !== 'ended') return 'state.status';
+    if (!isObj(r)) return 'record';
+    if (!Array.isArray(r.turns)) return 'record.turns';
+    if (!isObj(r.pending) || !Array.isArray(r.pending.research)) return 'record.pending';
+    if (r.seed !== s.seed) return 'record.seed';
+    if (s.status === 'ended') {
+      const res = s.result;
+      if (!isObj(res)) return 'state.result';
+      if (!isObj(res.score) || !Array.isArray(res.score.quarters) || !isObj(res.score.drawdown) || !isObj(res.score.final)) return 'state.result.score';
+      if (!isNum(res.excessDrawdown)) return 'state.result.excessDrawdown';
+      if (!isObj(r.result)) return 'record.result';
+    }
+    return null;
+  }
+
+  /**
+   * 校验存档（纯函数）。raw = localStorage 里的原始字符串，current = 当前 gameVersion。
+   * → null（没有存档）
+   * → { ok: true, state, record }
+   * → { ok: false, reason: 'version' | 'broken' | 'corrupt', version, record, data, raw, field }
+   */
+  function check(raw, current) {
+    if (raw == null || raw === '') return null;
+    let d;
+    try { d = JSON.parse(raw); } catch (e) { return { ok: false, reason: 'corrupt', version: null, record: null, data: null, raw }; }
+    if (!isObj(d)) return { ok: false, reason: 'corrupt', version: null, record: null, data: null, raw };
+    const record = isObj(d.record) ? d.record : null;
+    const version = record && typeof record.gameVersion === 'string' ? record.gameVersion : null;
+    if (version !== current) return { ok: false, reason: 'version', version, record, data: d, raw };
+    const field = missingField(d);
+    if (field) return { ok: false, reason: 'broken', version, record, data: d, raw, field };
+    return { ok: true, state: d.state, record: d.record };
+  }
+
+  /** 读取存档并校验（见 check） */
   function load() {
-    try {
-      const raw = localStorage.getItem(KEY);
-      if (!raw) return null;
-      const d = JSON.parse(raw);
-      const s = d && d.state;
-      return s && s.version === VERSION && s.companies && s.candles && s.vPath && d.record ? d : null;
-    } catch (e) { return null; }
+    let raw = null;
+    try { raw = localStorage.getItem(KEY); } catch (e) { return null; }
+    return check(raw, typeof GameConfig !== 'undefined' ? GameConfig.gameVersion : null);
+  }
+
+  /** 无法加载时给玩家看的说明 */
+  function message(bad) {
+    if (bad.reason === 'version') return `此存档来自旧版本 ${bad.version || '（未标注版本）'}，无法在当前版本继续`;
+    if (bad.reason === 'broken') return `此存档缺少关键数据（${bad.field}），无法在当前版本继续`;
+    return '此存档已损坏，无法在当前版本继续';
+  }
+
+  /** "导出原记录"的内容：原样导出存档里的记录（不改 gameVersion、不重新计分）；没有记录时导出整个存档原文 */
+  function originalExport(bad) {
+    if (bad.record) return { text: JSON.stringify(bad.record, null, 2), seed: bad.record.seed, version: bad.version };
+    return { text: bad.raw, seed: null, version: bad.version };
   }
 
   function clear() { try { localStorage.removeItem(KEY); } catch (e) { /* ignore */ } }
 
-  return { save, load, clear };
+  return { save, load, check, message, originalExport, clear, KEY, VERSION };
 })();
+if (typeof module === 'object' && module.exports) module.exports = GameSave;
