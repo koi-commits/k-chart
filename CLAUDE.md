@@ -15,6 +15,7 @@
 ```bash
 npm start                      # 运行游戏（electron 直接加载 index.html）
 npm test                       # 单元测试（node:test，tests/ 目录）
+npm run test:e2e               # 端到端测试（Playwright，tests/e2e/ui.e2e.js，约 4 分钟）：三种窗口尺寸打完一局检查弹窗按钮、旧存档提示、自动存档；截图在 test-results/e2e/
 node scripts/simulate.js       # 平衡测试：研究/随机估值/随机交易/等权持有/押单一公司/躺平 共 11 个 bot，各 1000 局（约 2.5 分钟），输出各等级比例、平均总分、提前判死比例
 node scripts/simulate.js 200 7 # 可选参数：局数、起始种子
 node scripts/analyze-records.js <记录文件夹> [--json|--quiet]  # 分析试玩导出的 JSON 记录（每局明细 + 汇总）
@@ -63,7 +64,7 @@ npm run build                  # 构建 Windows 便携版（国内网络先设�
 │   │   ├── record.js      # 试玩记录（行动/耗时/结果）与 replay(record) 重放
 │   │   └── summary.js     # 玩家可见信息的纯函数：progress（目标进度）、weekSummary（回合小结）、historyOf（历史回看）
 │   ├── ui/            # 界面层
-│   │   ├── save.js        # localStorage 自动存档（单槽，无手动读档）
+│   │   ├── save.js        # localStorage 自动存档（单槽，无手动读档）；GameSave.check 纯函数校验版本与关键字段
 │   │   ├── view.js        # 纯渲染（state + ui → DOM）
 │   │   ├── replay.js      # 结束回合后 5 根日 K 逐根回放（约 2 秒）
 │   │   ├── tips.js        # 悬停说明 ⓘ（GameTips.tip）：文案由调用方从 config 读数值拼入，不要写死数字
@@ -105,8 +106,10 @@ npm run build                  # 构建 Windows 便携版（国内网络先设�
 
 ### 试玩记录（record.js / app.js）
 - 记录 = 种子 + 每回合 `{research, orders}`（与 `advanceTurn` 的 actions 同格式）+ 耗时 + 结果；`Record.replay(rec)` 重放得到与实际完全一致的结局（有测试覆盖，改规则代码时别破坏这一点：不要在 advanceTurn 里引入不可重放的状态）。
-- 记录里有 `gameVersion`（来自 `config.gameVersion`，当前 `v0.4-playtest`，也显示在界面右下角）。**发新一批试玩版本前要改这个值**，这样收回来的数据能区分版本。
-- 耗时由 `app.js` 测量（回合界面停留的累计毫秒，刷新后继续累计），传给 `commitTurn`。存档格式为 `{state, record}`；`state.version` 不符的旧存档直接丢弃。
+- 记录里有 `gameVersion`（来自 `config.gameVersion`，当前 `v0.4.1-playtest`，也显示在界面右下角）。**发新一批试玩版本前要改这个值**，这样收回来的数据能区分版本。
+- 耗时由 `app.js` 测量（回合界面停留的累计毫秒，刷新后继续累计），传给 `commitTurn`。存档格式为 `{state, record, view}`：待执行订单队列在 `record.pending.orders`（与 `ui.pending` 是同一个数组，下单/撤单即存档）；`view` 是还没看完的结算弹窗（`{weeklyTurn}` / `{quarter}`）。结束回合时**先** `advanceTurn` + `commitTurn` 并存档，再回放（回放只是展示）；回放途中退出，重进直接显示回合小结，不重播、不重复结算。
+- **旧存档不迁移**：`GameSave.check` 发现存档的 `record.gameVersion` 与当前版本不同、或缺关键字段（如已结算却没有 `result.score`）时，不进入游戏，显示"此存档来自旧版本 vX，无法在当前版本继续"，提供"导出原记录"（原样导出，不改 gameVersion、不重新计分）和"开始新局"。正常导出也不覆盖记录的 gameVersion。
+- 所有弹窗卡片（`.card`）高度不超过视口、内容区滚动，底部按钮（`.card .actions`）sticky 固定；新增弹窗沿用这套结构，并在 `tests/e2e/ui.e2e.js` 里加检查。
 
 ### 记录分析（scripts/analyze-records.js）
 - 读取一个文件夹里的所有导出 JSON（递归），跳过坏文件并说明原因。**记录格式变了要同步这个脚本和 `tests/analyze-records.test.js`**。估值误差通过 `Record.replay` 重放得到研究日志里的 `trueV`，所以只有 `gameVersion` 与当前代码一致、且重放结果与记录一致的局才有误差数据；改了会影响价格路径的规则（事件抽取、价格模型、引擎）后，旧版本记录就只能看分数构成。
