@@ -12,6 +12,9 @@
   // vMult / sShift 为 [min, max] 区间，仅内部使用，不会展示给玩家。dir：对目标公司的方向（+1 利好 / -1 利空）。
   // 标题按事件强度分"重/轻"两档（强度由抽到的幅度决定），每档可有多个说法：
   //   · 重/轻的措辞本身带来区分度（"重大长期合同" vs "常规供货订单"），读一句就能大致判断重要程度，但不给数值；
+  //   · 轻/重按"最终作用在公司上的实际影响"和统一的绝对阈值划分（config.events.headline）：基本面看乘负债杠杆后的 |vLog|，
+  //     情绪看 |sShift|；行业事件按受影响最大的那家公司决定。所以"小幅""影响有限"之类的轻档措辞一定对应小影响，
+  //     "大幅""显著""明显""重大"之类的重档措辞一定对应达到阈值的影响（有测试）；
   //   · 基本面与情绪事件刻意共用词汇（如"业绩""订单""传闻""利润下滑"），不存在单个关键词能 100% 判断类型；
   //   · 不再出现"公司称经营一切正常""基本面无明显变化"这类直接暴露类型的尾句。
   const CARDS = [
@@ -43,9 +46,20 @@
       strong: ['市场流传{name}将有重大资产重组，公司未予证实', '市场传言{name}业绩将大幅超预期，公司暂无公告'],
       weak:   ['多家自媒体看好{name}，称其有望受益于行业变化'] },
     { id: 'sector_hype', scope: 'industry', kind: 'sentiment',   dir: 1, weight: 0.9, vMult: [1.0, 1.0], sShift: [0.04, 0.09],
-      strong: ['{industry}板块获资金追捧，多只个股连续涨停'],
+      strong: ['{industry}板块获资金追捧，相关个股明显走强'],
       weak:   ['{industry}板块成交活跃，多只个股异动', '多家券商看多{industry}行业，称景气度有望继续上行'] }
   ];
+
+  /** 事件的实际影响幅度：基本面 = 受影响公司中最大的 |vLog|（已乘负债杠杆）；情绪 = 最大的 |sShift| */
+  function impactOf(kind, effects) {
+    const xs = Object.values(effects).map((e) => Math.abs(kind === 'fundamental' ? e.vLog : e.sShift));
+    return xs.length ? Math.max(...xs) : 0;
+  }
+  /** 实际影响达到统一阈值 → 用"重"档措辞 */
+  function isStrong(kind, effects) {
+    const h = GameConfig.events.headline;
+    return impactOf(kind, effects) >= (kind === 'fundamental' ? h.strongVLog : h.strongShift);
+  }
 
   function fill(tpl, company) {
     return tpl.replace('{name}', company.name).replace('{industry}', company.industryName);
@@ -85,21 +99,19 @@
       const m = rng.uniform(card.vMult[0], card.vMult[1]);
       const lnMult = Math.log(m);
       const sShift = rng.uniform(card.sShift[0], card.sShift[1]);
-      // 强度：基本面看 V 变化幅度，情绪看情绪冲击幅度；落在区间上半段为"重"，否则为"轻"
-      const mag = card.kind === 'fundamental' ? Math.abs(lnMult) : Math.abs(sShift);
-      const r = card.kind === 'fundamental' ? [Math.abs(Math.log(card.vMult[0])), Math.abs(Math.log(card.vMult[1]))] : [Math.abs(card.sShift[0]), Math.abs(card.sShift[1])];
-      const strong = r[0] === r[1] ? true : (mag - Math.min(r[0], r[1])) / Math.abs(r[1] - r[0]) >= 0.5;
-      const headline = fill(rng.pick(strong ? card.strong : card.weak), target);
       const effects = {};
       for (const c of hit) {
         const leverage = 1 + cfg.debtLeverage * c.debt;  // 负债越高，基本面冲击越大
         effects[c.id] = { vLog: lnMult * leverage, sShift };
         dirs[c.id] = card.dir;
       }
+      // 措辞轻重：按实际影响（乘杠杆之后）与统一阈值划分；随机数消耗与之前完全相同（仍只 pick 一次），价格路径不变
+      const strong = isStrong(card.kind, effects);
+      const headline = fill(rng.pick(strong ? card.strong : card.weak), target);
       out.push({ cardId: card.id, kind: card.kind, headline, targetId: target.id, effects });
     }
     return out;
   }
 
-  return { CARDS, drawWeek };
+  return { CARDS, drawWeek, impactOf, isStrong };
 });

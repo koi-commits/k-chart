@@ -93,12 +93,13 @@ test('旧版本记录：没有评分的按当前参数用各季度超额重算�
   assert.match(A.formatReport(A.analyzeDir(dir)), /规则版本不同的旧记录，按当前规则重算/);
 });
 
-test('版本：规则版本相同、程序版本不同（含只有 gameVersion 的 v0.4 / v0.4.1 记录）照常直接分析；规则版本不同的才重算', () => {
+test('版本：规则版本相同、程序版本不同的记录照常直接分析；规则版本不同的（含 v0.4.x 旧记录）才重算', () => {
   const rec = makeRecord(15, { research: { 1: 3 } });
   const a = JSON.parse(JSON.stringify(rec)); a.buildVersion = Config.rulesVersion + '.0-older';                   // 程序版本不同
-  const b = JSON.parse(JSON.stringify(rec)); delete b.buildVersion; delete b.rulesVersion; b.gameVersion = 'v' + Config.rulesVersion + '.1-playtest';   // 旧格式、同规则
+  const b = JSON.parse(JSON.stringify(rec)); b.buildVersion = '9.0.0-future';                                         // 程序版本不同（更新）
   const c = JSON.parse(JSON.stringify(rec)); c.rulesVersion = '0.0';                                                 // 规则版本不同
-  for (const [r, same] of [[a, true], [b, true], [c, false]]) {
+  const d = JSON.parse(JSON.stringify(rec)); delete d.buildVersion; delete d.rulesVersion; d.gameVersion = 'v0.4.1-playtest';   // 旧格式 v0.4.1（规则 0.4）
+  for (const [r, same] of [[a, true], [b, true], [c, false], [d, Config.rulesVersion === '0.4']]) {
     const g = A.analyzeRecord(r, 'x.json');
     assert.equal(g.score.recomputed, !same);
     assert.equal(g.estimate.available, same, JSON.stringify(g.estimate));

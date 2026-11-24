@@ -93,15 +93,15 @@ test('存档校验：当前版本但缺少关键字段 → 无法加载（不崩
   assert.equal(r2.ok, false); assert.equal(r2.reason, 'corrupt'); assert.equal(Save.originalExport(r2).text, '{"state":');
 });
 
-test('存档兼容：规则版本相同、程序版本不同的存档可以正常加载（含 v0.4 / v0.4.1 旧格式存档）', () => {
+test('存档兼容：规则版本相同、程序版本不同的存档可以正常加载', () => {
   const mid = () => {                                       // 进行到一半的对局
     let s = State.newGame(9); const rec = Record.create(9, 'x', 0);
     for (let i = 0; i < 3; i++) { const n = State.advanceTurn(s, {}); Record.commitTurn(rec, { turn: s.turn, orders: [], durationMs: 1, newsShown: [], state: n }); s = n; }
     return { state: s, record: rec, view: null };
   };
   const a = clone(mid()); a.record.buildVersion = RULES + '.0-older';                    // 新格式，程序版本不同
-  const b = clone(mid()); legacy(b.record, 'v' + RULES + '-playtest');                 // 旧格式 v0.4-playtest
-  const c = clone(mid()); legacy(c.record, 'v' + RULES + '.1-playtest');               // 旧格式 v0.4.1-playtest
+  const b = clone(mid()); b.record.buildVersion = '9.0.0-future';                         // 程序版本更新
+  const c = clone(mid()); c.record.buildVersion = 'unknown-build';                          // 程序版本号格式不认识也不影响
   const e = clone(finishedSave(10)); e.record.buildVersion = RULES + '.99-future';      // 已结算的局
   for (const d of [a, b, c, e]) {
     const r = check(JSON.stringify(d));
@@ -115,7 +115,11 @@ test('存档兼容：规则版本不同的存档按旧存档处理（不论程�
   const b = clone(finishedSave(12)); b.record.rulesVersion = '9.9';
   const c = clone(finishedSave(13)); legacy(c.record, 'v0.3-playtest');
   const d = clone(finishedSave(14)); delete d.record.buildVersion; delete d.record.rulesVersion;   // 没有任何版本号
-  for (const [x, rules] of [[a, '0.3'], [b, '9.9'], [c, '0.3'], [d, null]]) {
+  const f = clone(finishedSave(15)); f.record.buildVersion = '0.4.2-playtest'; f.record.rulesVersion = '0.4';   // 0.4.2 的存档（规则 0.4）
+  const g = clone(finishedSave(16)); legacy(g.record, 'v0.4.1-playtest');                                       // 0.4.1 的存档（规则 0.4）
+  const cases = [[a, '0.3'], [b, '9.9'], [c, '0.3'], [d, null]];
+  if (RULES !== '0.4') cases.push([f, '0.4'], [g, '0.4']);
+  for (const [x, rules] of cases) {
     const r = check(JSON.stringify(x));
     assert.equal(r.ok, false); assert.equal(r.reason, 'version'); assert.equal(r.rules, rules);
     assert.match(Save.message(r), /此存档来自旧版本 .*无法在当前版本继续/);

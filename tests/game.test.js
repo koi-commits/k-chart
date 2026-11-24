@@ -608,8 +608,7 @@ test('规则页：评分 ≤ 5 条、每条一句话、数字都在悬停说明�
 
 test('版本号：buildVersion / rulesVersion；旧记录按 gameVersion 的"主.次"推出规则版本', () => {
   const Record = G('record.js');
-  assert.match(Config.buildVersion, /^\d+\.\d+\.\d+-playtest$/); assert.match(Config.rulesVersion, /^\d+\.\d+$/);
-  assert.ok(Config.buildVersion.startsWith(Config.rulesVersion + '.'), '程序版本的主.次应与规则版本一致');
+  assert.match(Config.buildVersion, /^\d+\.\d+\.\d+-playtest$/); assert.match(Config.rulesVersion, /^\d+\.\d+(\.\d+)?$/);
   assert.equal(Config.gameVersion, undefined, '不再使用单一的 gameVersion');
   assert.deepEqual(Record.versionsOf(Record.create(1, 'x')), { build: Config.buildVersion, rules: Config.rulesVersion, label: 'v' + Config.buildVersion });
   assert.deepEqual(Record.versionsOf({ gameVersion: 'v0.4.1-playtest' }), { build: '0.4.1-playtest', rules: '0.4', label: 'v0.4.1-playtest' });
@@ -619,4 +618,5 @@ test('版本号：buildVersion / rulesVersion；旧记录按 gameVersion 的"主
   assert.equal(Record.sameRules({ gameVersion: 'v0.4.1-playtest' }), Config.rulesVersion === '0.4');
   assert.equal(Record.sameRules({ buildVersion: '9.9.9-x', rulesVersion: Config.rulesVersion }), true);
   assert.equal(Record.sameRules({ gameVersion: 'v0.3-playtest' }), false);
+  assert.equal(Record.sameRules({ buildVersion: '0.4.2-playtest', rulesVersion: '0.4' }), Config.rulesVersion === '0.4');   // 0.4.2 的记录（规则 0.4）
 });

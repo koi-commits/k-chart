@@ -356,12 +356,12 @@ test('回合计时：小结打开期间等待后刷新，下一回合耗时从 0
 });
 
 // ── 版本号：按规则版本判断存档兼容 ──
-test('版本：规则版本相同的 v0.4.1 旧格式存档（进行中）可以继续玩；导出时写入两个版本号；角落显示程序版本', { timeout: 60000 }, async () => {
+test('版本：规则版本相同、程序版本不同的存档（进行中）可以继续玩；导出时写入两个版本号；角落显示程序版本', { timeout: 60000 }, async () => {
   let s = State.newGame(77);
   const rec = Record.create(77, '2026-01-01T00:00:00.000Z', 0);
   for (let i = 0; i < 2; i++) { const n = State.advanceTurn(s, {}); Record.commitTurn(rec, { turn: s.turn, orders: [], durationMs: 1000, newsShown: [], state: n }); s = n; }
-  legacy(rec, 'v' + Config.rulesVersion + '.1-playtest');
-  delete rec.pending.orders;                                       // v0.4.1 之前的存档没有这个字段
+  rec.buildVersion = Config.rulesVersion + '.0-older-playtest';    // 程序版本不同，规则版本相同
+  delete rec.pending.orders;                                       // 较早的存档没有这个字段
   const { ctx, page, errors } = await H.openPage(browser, SIZES[0], injectSave({ state: s, record: rec, view: null }));
   assert.equal(await H.visible(page, '#oldSave'), false, '规则版本相同的存档不应被当成旧存档');
   assert.equal(await page.evaluate(() => App.getState().turn), 3);
@@ -370,10 +370,9 @@ test('版本：规则版本相同的 v0.4.1 旧格式存档（进行中）可以
   await playToEnd(page);
   const [dl] = await Promise.all([page.waitForEvent('download'), page.click('[data-action=export]')]);
   const out = JSON.parse(fs.readFileSync(await dl.path(), 'utf8'));
-  assert.equal(out.buildVersion, Config.rulesVersion + '.1-playtest', '记录的程序版本 = 这局创建时的版本');
+  assert.equal(out.buildVersion, Config.rulesVersion + '.0-older-playtest', '记录的程序版本 = 这局创建时的版本');
   assert.equal(out.rulesVersion, Config.rulesVersion);
   assert.equal(out.exportedByBuild, Config.buildVersion);
-  assert.equal(out.gameVersion, 'v' + Config.rulesVersion + '.1-playtest', '旧字段原样保留');
   assertReplayable(out);
   assert.deepEqual(errors, []);
   await ctx.close();
