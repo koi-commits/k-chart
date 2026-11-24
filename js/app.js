@@ -252,6 +252,7 @@ const App = (() => {
     if (typeof LightweightCharts === 'undefined') { setTimeout(init, 100); return; }
     document.getElementById('verTag').textContent = GameConfig.gameVersion;
     ChartManager.init();
+    GameModal.init();               // 弹窗打开时背景 inert、焦点锁在弹窗内
     document.addEventListener('click', onClick);
     document.getElementById('btnEndTurn').addEventListener('click', endTurn);
     document.getElementById('btnRestart').addEventListener('click', restart);

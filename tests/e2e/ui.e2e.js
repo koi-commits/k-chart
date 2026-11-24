@@ -257,3 +257,66 @@ test('自动存档：回放途中退出后重进，直接显示回合小结，�
   assert.deepEqual(errors, []);
   await ctx.close();
 });
+
+// ── 键盘：弹窗打开时背景不可交互 ──
+/** 在弹窗 sel 打开时尝试各种按键：焦点始终留在弹窗内，背景的"结束回合"等按钮无法被触发 */
+async function keyboardStaysInside(page, sel, label) {
+  const snapshot = () => page.evaluate(() => ({ turn: App.getState().turn, n: App.getRecord().turns.length, pend: App.getRecord().pending.orders.length }));
+  const before = await snapshot();
+  const inside = () => page.evaluate((s) => document.querySelector(s).contains(document.activeElement), sel);
+  for (const key of ['Tab', 'Tab', 'Tab', 'Tab', 'Tab', 'Tab', 'Shift+Tab', 'Shift+Tab', 'Shift+Tab', 'Shift+Tab', 'Shift+Tab', 'Shift+Tab', 'Shift+Tab', 'Shift+Tab']) {
+    await page.keyboard.press(key);
+    assert.ok(await inside(), `${label}：按 ${key} 后焦点跑出了弹窗`);
+  }
+  // 背景元素拿不到焦点（inert）；就算强行 focus，Enter / Space 也不会作用到背景
+  for (const bg of ['#btnEndTurn', '#btnRestart', '#lotsInput', '[data-action=order][data-side=buy]']) {
+    await page.$eval(bg, (el) => el.focus());
+    assert.ok(await inside(), `${label}：背景元素 ${bg} 不应能获得焦点`);
+    // 焦点落到弹窗外（页面 body）时按 Enter / Space：必须被拦下，不能作用到背景
+    for (const key of ['Enter', ' ']) {
+      await page.evaluate(() => document.activeElement && document.activeElement.blur());
+      await page.keyboard.press(key);
+      assert.ok(await H.visible(page, sel), `${label}：焦点在弹窗外时按 ${key === ' ' ? 'Space' : key} 把弹窗关掉了`);
+    }
+  }
+  const b = await page.$eval('#btnEndTurn', (el) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+  await page.mouse.click(b.x, b.y);                             // 真实鼠标点在背景按钮的位置上：点到的是遮罩，不触发
+  assert.deepEqual(await snapshot(), before, `${label}：背景操作被触发了`);
+  assert.ok(await H.visible(page, sel), `${label}：弹窗被关掉了`);
+  assert.equal(await page.$eval('#app', (el) => el.inert), true);
+}
+
+test('键盘：规则页、回合小结、季度成绩单打开时，Tab/Shift+Tab/Enter/Space 都碰不到背景，季度成绩单不会被跳过', { skip, timeout: 120000 }, async () => {
+  const { ctx, page, errors } = await H.openPage(browser, SIZES[0]);
+  assert.ok(await H.visible(page, '#rules'));                  // 首次启动自动弹出规则页
+  await keyboardStaysInside(page, '#rules', '规则页');
+  await page.focus('#rules .actions .primary');
+  await page.keyboard.press('Enter');                           // Enter 作用在规则页自己的按钮上：关闭规则页
+  assert.equal(await H.visible(page, '#rules'), false);
+  await page.waitForFunction(() => !document.getElementById('app').inert, null, { timeout: 2000 });   // 弹窗全部关闭后背景恢复可交互
+  assert.equal(await page.evaluate(() => App.getState().turn), 1, '关闭规则页不应结束回合');
+  for (let t = 1; t <= 5; t++) {
+    await page.click('#btnEndTurn');
+    await waitAny(page, ['#weekly']);
+    if (t < 5) await page.click('#btnWeeklyClose');
+  }
+  await keyboardStaysInside(page, '#weekly', '第 5 回合小结');
+  await page.focus('#btnWeeklyClose');
+  await page.keyboard.press('Enter');                           // 关闭小结 → 必须出现第 1 季度成绩单
+  assert.ok(await H.visible(page, '#quarter'), '季度成绩单被跳过了');
+  assert.equal(await page.evaluate(() => App.getState().turn), 6);
+  await keyboardStaysInside(page, '#quarter', '第 1 季度成绩单');
+  await page.focus('#btnQuarterClose');
+  await page.keyboard.down('Enter'); await page.keyboard.down('Enter'); await page.keyboard.up('Enter');   // 按住 Enter 的自动重复不能连跳
+  assert.equal(await H.visible(page, '#quarter'), false);
+  assert.equal(await page.evaluate(() => ({ t: App.getState().turn, n: App.getRecord().turns.length })).then((x) => x.t === 6 && x.n === 5), true, '关闭成绩单不应结束回合');
+  // 回合历史、规则页（手动打开）也一样
+  await page.click('#btnHistory');
+  await keyboardStaysInside(page, '#history', '回合历史');
+  await page.click('[data-action=hist-close]');
+  await page.click('#btnRules');
+  await keyboardStaysInside(page, '#rules', '规则页（手动打开）');
+  await page.click('[data-action=rules-close]');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});

@@ -67,6 +67,7 @@ npm run build                  # 构建 Windows 便携版（国内网络先设�
 │   │   ├── save.js        # localStorage 自动存档（单槽，无手动读档）；GameSave.check 纯函数校验版本与关键字段
 │   │   ├── view.js        # 纯渲染（state + ui → DOM）
 │   │   ├── replay.js      # 结束回合后 5 根日 K 逐根回放（约 2 秒）
+│   │   ├── modal.js       # 弹窗管理：任一 .overlay 打开时背景（#app 与下层弹窗）inert、焦点锁在最上层弹窗内循环、关闭后焦点复原；onChange 回调
 │   │   ├── tips.js        # 悬停说明 ⓘ（GameTips.tip）：文案由调用方从 config 读数值拼入，不要写死数字
 │   │   ├── weekly.js      # 回合小结弹窗（盈亏/费用/成交/新闻）
 │   │   ├── history.js     # 回合历史：切换查看任意回合的新闻、研究与结果
@@ -82,7 +83,7 @@ npm run build                  # 构建 Windows 便携版（国内网络先设�
 └── icons/ dist/
 ```
 
-脚本加载顺序（index.html）：`lightweight-charts` → `game/config` → `rng` → `companies` → `events` → `scoring` → `advice` → `market` → `research` → `trading` → `game-state` → `record` → `summary` → `chart` → `ui/tips` → `ui/save` → `ui/view` → `ui/replay` → `ui/review` → `ui/weekly` → `ui/history` → `ui/rules` → `app`。所有模块是 UMD/IIFE，通过全局变量互相引用（`GameConfig`、`GameRng`、`GameState`、`ChartManager`、`App` 等）。
+脚本加载顺序（index.html）：`lightweight-charts` → `game/config` → `rng` → `companies` → `events` → `scoring` → `advice` → `market` → `research` → `trading` → `game-state` → `record` → `summary` → `chart` → `ui/tips` → `ui/modal` → `ui/save` → `ui/view` → `ui/replay` → `ui/review` → `ui/weekly` → `ui/history` → `ui/rules` → `app`。所有模块是 UMD/IIFE，通过全局变量互相引用（`GameConfig`、`GameRng`、`GameState`、`ChartManager`、`App` 等）。
 
 ### 遗留文件（仍在仓库，但 index.html 不加载）
 
@@ -109,6 +110,7 @@ npm run build                  # 构建 Windows 便携版（国内网络先设�
 - 记录里有 `gameVersion`（来自 `config.gameVersion`，当前 `v0.4.1-playtest`，也显示在界面右下角）。**发新一批试玩版本前要改这个值**，这样收回来的数据能区分版本。
 - 耗时由 `app.js` 测量（回合界面停留的累计毫秒，刷新后继续累计），传给 `commitTurn`。存档格式为 `{state, record, view}`：待执行订单队列在 `record.pending.orders`（与 `ui.pending` 是同一个数组，下单/撤单即存档）；`view` 是还没看完的结算弹窗（`{weeklyTurn}` / `{quarter}`）。结束回合时**先** `advanceTurn` + `commitTurn` 并存档，再回放（回放只是展示）；回放途中退出，重进直接显示回合小结，不重播、不重复结算。
 - **旧存档不迁移**：`GameSave.check` 发现存档的 `record.gameVersion` 与当前版本不同、或缺关键字段（如已结算却没有 `result.score`）时，不进入游戏，显示"此存档来自旧版本 vX，无法在当前版本继续"，提供"导出原记录"（原样导出，不改 gameVersion、不重新计分）和"开始新局"。正常导出也不覆盖记录的 gameVersion。
+- 弹窗的键盘与焦点由 `ui/modal.js` 统一管理（监听各 `.overlay` 的 hidden 属性），新增弹窗只要用 `.overlay` 就自动生效，不要在别处给背景按钮绑快捷键。
 - 所有弹窗卡片（`.card`）高度不超过视口、内容区滚动，底部按钮（`.card .actions`）sticky 固定；新增弹窗沿用这套结构，并在 `tests/e2e/ui.e2e.js` 里加检查。
 
 ### 记录分析（scripts/analyze-records.js）
