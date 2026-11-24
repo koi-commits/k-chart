@@ -320,3 +320,34 @@ test('键盘：规则页、回合小结、季度成绩单打开时，Tab/Shift+T
   assert.deepEqual(errors, []);
   await ctx.close();
 });
+
+// ── 回合计时：弹窗打开期间暂停 ──
+test('回合计时：小结打开期间等待后刷新，下一回合耗时从 0 开始；弹窗期间暂停，关掉后才计时', { skip, timeout: 60000 }, async () => {
+  const { ctx, page, errors } = await H.openPage(browser, SIZES[0]);
+  const acc = () => page.evaluate(() => App.getRecord().pending.accMs);
+  const reload = async () => { await page.reload(); await page.waitForFunction(() => typeof App !== 'undefined' && App.getState()); };
+  await page.waitForTimeout(800);                               // 规则页打开期间：不计时
+  await page.click('[data-action=rules-close]');
+  assert.ok(await acc() < 100, '看规则的时间不应计入');
+  await page.waitForTimeout(700);                               // 回合界面上停留：计时
+  await page.click('#btnEndTurn');
+  await waitAny(page, ['#weekly']);
+  const t1 = await page.evaluate(() => App.getRecord().turns[0].durationMs);
+  assert.ok(t1 >= 600 && t1 < 1500, `第 1 回合耗时应约 0.7 秒（实际 ${t1}ms）`);
+  await page.waitForTimeout(1500);                              // 停在小结 1.5 秒
+  await reload();                                               // 刷新：退出时存档，读档恢复后小结仍开着
+  assert.ok(await H.visible(page, '#weekly'));
+  await page.waitForTimeout(600);                               // 读档后小结继续开着：仍然暂停
+  const a0 = await acc();
+  assert.ok(a0 < 100, `下一回合耗时应从 0 开始（实际 ${a0}ms）`);
+  await page.click('#btnWeeklyClose');
+  assert.ok(await acc() < 100);
+  await page.waitForTimeout(600);                               // 关掉小结后在回合界面停留：开始计时
+  await page.click('#btnHistory');                              // 打开回合历史：暂停
+  await page.waitForTimeout(800);
+  await reload();                                               // 历史弹窗打开时刷新
+  const a1 = await acc();
+  assert.ok(a1 >= 500 && a1 < 1000, `只应计入关掉小结后、打开历史前的约 0.6 秒（实际 ${a1}ms）`);
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});

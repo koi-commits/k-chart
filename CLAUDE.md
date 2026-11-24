@@ -108,7 +108,7 @@ npm run build                  # 构建 Windows 便携版（国内网络先设�
 ### 试玩记录（record.js / app.js）
 - 记录 = 种子 + 每回合 `{research, orders}`（与 `advanceTurn` 的 actions 同格式）+ 耗时 + 结果；`Record.replay(rec)` 重放得到与实际完全一致的结局（有测试覆盖，改规则代码时别破坏这一点：不要在 advanceTurn 里引入不可重放的状态）。
 - 记录里有 `gameVersion`（来自 `config.gameVersion`，当前 `v0.4.1-playtest`，也显示在界面右下角）。**发新一批试玩版本前要改这个值**，这样收回来的数据能区分版本。
-- 耗时由 `app.js` 测量（回合界面停留的累计毫秒，刷新后继续累计），传给 `commitTurn`。存档格式为 `{state, record, view}`：待执行订单队列在 `record.pending.orders`（与 `ui.pending` 是同一个数组，下单/撤单即存档）；`view` 是还没看完的结算弹窗（`{weeklyTurn}` / `{quarter}`）。结束回合时**先** `advanceTurn` + `commitTurn` 并存档，再回放（回放只是展示）；回放途中退出，重进直接显示回合小结，不重播、不重复结算。
+- 耗时由 `app.js` 的 `clockSync()` 测量：只在回合界面、**没有任何弹窗**、不在回放时计时（弹窗开关由 `GameModal.onChange` 通知），存档里的耗时不含读小结/看规则/看历史的时间；刷新后继续累计，传给 `commitTurn`。存档格式为 `{state, record, view}`：待执行订单队列在 `record.pending.orders`（与 `ui.pending` 是同一个数组，下单/撤单即存档）；`view` 是还没看完的结算弹窗（`{weeklyTurn}` / `{quarter}`）。结束回合时**先** `advanceTurn` + `commitTurn` 并存档，再回放（回放只是展示）；回放途中退出，重进直接显示回合小结，不重播、不重复结算。
 - **旧存档不迁移**：`GameSave.check` 发现存档的 `record.gameVersion` 与当前版本不同、或缺关键字段（如已结算却没有 `result.score`）时，不进入游戏，显示"此存档来自旧版本 vX，无法在当前版本继续"，提供"导出原记录"（原样导出，不改 gameVersion、不重新计分）和"开始新局"。正常导出也不覆盖记录的 gameVersion。
 - 弹窗的键盘与焦点由 `ui/modal.js` 统一管理（监听各 `.overlay` 的 hidden 属性），新增弹窗只要用 `.overlay` 就自动生效，不要在别处给背景按钮绑快捷键。
 - 所有弹窗卡片（`.card`）高度不超过视口、内容区滚动，底部按钮（`.card .actions`）sticky 固定；新增弹窗沿用这套结构，并在 `tests/e2e/ui.e2e.js` 里加检查。

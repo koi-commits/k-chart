@@ -2,7 +2,8 @@
 const App = (() => {
   let state = null;
   let record = null;      // 试玩记录（见 game/record.js），随存档保存
-  let segStart = Date.now(); // 本回合当前停留片段的起点（毫秒）
+  let segStart = Date.now(); // 回合计时：当前这段计时的起点（毫秒）
+  let clockRunning = false;  // 回合计时是否在走：只在回合界面、没有弹窗、不在回放时走
   let view = null;          // 还没看完的结算弹窗：{weeklyTurn} 回合小结 / {quarter} 季度成绩单；随存档保存
   let badSave = null;       // 无法加载的旧存档（见 GameSave.check）
   // ui.pending 与 record.pending.orders 是同一个数组：订单队列每次变化都随存档写入
@@ -13,17 +14,22 @@ const App = (() => {
     GameReplay.showChart(state, ui.selected, upto);
   }
 
-  /** 把当前停留片段计入本回合耗时（存档前、结束回合前调用） */
-  function touchTime() {
+  /**
+   * 回合计时。在任何可能改变"是否该计时"的时刻调用（弹窗开关、回放开始/结束、存档、读档）：
+   * 先把正在走的这段时间记进本回合耗时，再按当前情况决定继续走还是暂停。
+   * 只有玩家在回合界面且没有任何弹窗、也不在回放时才计时；所以存档里的耗时不含读小结、看规则、看历史的时间。
+   */
+  function clockSync() {
     const now = Date.now();
-    record.pending.accMs += now - segStart;
+    if (clockRunning && record) record.pending.accMs += now - segStart;
     segStart = now;
+    clockRunning = !!(state && record && state.status === 'playing' && !ui.busy && !GameModal.isOpen());
   }
 
-  /** 存档。回放途中（ui.busy）不计入回合耗时：回合已经结算，回放只是展示 */
+  /** 存档（先结算计时：回放途中、弹窗打开时的时间不计入回合耗时） */
   function persist() {
     if (!state || !record) return;
-    if (ui.busy) segStart = Date.now(); else touchTime();
+    clockSync();
     GameSave.save(state, record, view);
   }
 
@@ -34,8 +40,8 @@ const App = (() => {
   }
 
   /** 打开/关闭规则页；阅读规则的时间不计入回合耗时 */
-  function openRules(first) { if (record) touchTime(); GameRules.open(first); }
-  function closeRules() { GameRules.close(); segStart = Date.now(); }
+  function openRules(first) { clockSync(); GameRules.open(first); clockSync(); }
+  function closeRules() { GameRules.close(); clockSync(); }
 
   /** 退出游戏：先存档，再关闭（Electron 里走 IPC，浏览器里 window.close） */
   function quitGame() {
@@ -48,7 +54,7 @@ const App = (() => {
   function newGame(restarts) {
     state = GameState.newGame(crypto.getRandomValues(new Uint32Array(1))[0]); // 种子在 UI 层生成
     record = GameRecord.create(state.seed, new Date().toISOString(), restarts || 0);
-    segStart = Date.now(); view = null; badSave = null;
+    clockRunning = false; view = null; badSave = null;
     bindPending(); ui.lots = 1; ui.researchN = 1;
     ui.selected = Object.keys(state.companies)[0];
     GameSave.save(state, record, view);
@@ -56,6 +62,7 @@ const App = (() => {
     GameView.hideSettlement();
     GameReview.close();
     render();
+    clockSync();
   }
 
   /** 操作失败/无效操作的提示：显示在对应面板的操作按钮旁边，醒目，几秒后自动消失 */
@@ -113,7 +120,7 @@ const App = (() => {
     if (!state || ui.busy || state.status !== 'playing') return;
     readLots();
     const orders = ui.pending.map((o) => ({ id: o.id, side: o.side, shares: o.lots * GameConfig.lotSize }));
-    touchTime();
+    clockSync();                                   // 把本回合最后这段时间记进去
     const durationMs = record.pending.accMs;
     const turn = state.turn, newsShown = state.news.map((n) => n.headline);
     const next = GameState.advanceTurn(state, { orders });
@@ -121,16 +128,17 @@ const App = (() => {
     state = next; bindPending(); ui.researchN = 1;
     view = { weeklyTurn: turn };
     GameSave.save(state, record, view);          // 结算结果先落盘
-    ui.busy = true; segStart = Date.now();
+    ui.busy = true; clockSync();                   // 回放期间不计时
     document.getElementById('btnEndTurn').disabled = true;
     GameReplay.play(next, ui, (upto) => {
       GameView.renderTopbar(next, upto);
       GameView.renderCompanies(next, ui, upto);
       GameView.chartTitle(next, ui, upto);
     }, () => {
-      ui.busy = false; segStart = Date.now();
+      ui.busy = false;
       render();
       showView();
+      clockSync();                                 // 小结打开：继续暂停
     });
   }
 
@@ -141,24 +149,24 @@ const App = (() => {
     if (state.status === 'ended') GameView.renderSettlement(state);
   }
 
-  function openHistory() { if (ui.busy || !state) return; touchTime(); GameHistory.open(state); }
-  function closeHistory() { GameHistory.close(); segStart = Date.now(); }   // 查看历史的时间不计入回合耗时
+  function openHistory() { if (ui.busy || !state) return; clockSync(); GameHistory.open(state); clockSync(); }
+  function closeHistory() { GameHistory.close(); clockSync(); }   // 查看历史的时间不计入回合耗时
 
   function closeWeekly() {
     GameWeekly.close();
-    segStart = Date.now();            // 阅读小结的时间不计入下一回合耗时
     const L = GameConfig.quarterLength, t = ui.weeklyTurn;
     view = t % L === 0 && GameState.quarterResults(state).length >= t / L ? { quarter: t / L } : null;
     GameSave.save(state, record, view);
     showView();
+    clockSync();                      // 阅读小结的时间不计入下一回合耗时：从这里（没有弹窗时）才开始计
   }
 
   function closeQuarter() {
     GameView.hideQuarterReport();
-    segStart = Date.now();
     view = null;
     GameSave.save(state, record, view);
     showView();
+    clockSync();
   }
 
   /** 导出本局记录为 JSON 文件（种子、每回合行动与耗时、最终结果） */
@@ -253,6 +261,7 @@ const App = (() => {
     document.getElementById('verTag').textContent = GameConfig.gameVersion;
     ChartManager.init();
     GameModal.init();               // 弹窗打开时背景 inert、焦点锁在弹窗内
+    GameModal.onChange(() => clockSync());   // 任何弹窗开关都同步一次回合计时（新闻弹窗、结算页等也算）
     document.addEventListener('click', onClick);
     document.getElementById('btnEndTurn').addEventListener('click', endTurn);
     document.getElementById('btnRestart').addEventListener('click', restart);
@@ -266,11 +275,12 @@ const App = (() => {
     if (saved && !saved.ok) { showOldSave(saved); return; }   // 旧版本/缺字段：不进入游戏，不报错
     if (saved) {
       try {
-        state = saved.state; record = saved.record; view = saved.view; segStart = Date.now();
+        state = saved.state; record = saved.record; view = saved.view; clockRunning = false;
         bindPending();
         ui.selected = Object.keys(state.companies)[0];
         render();
         showView();                    // 回放途中退出：直接显示回合小结，不重播、不重复结算
+        clockSync();                   // 读档恢复：有弹窗就继续暂停
       } catch (e) {
         console.warn('存档无法显示', e);
         state = null; record = null; view = null;
